@@ -66,6 +66,19 @@
     cursor: pointer;
   }
   #btnLogin:hover { background: #28405a; }
+  #btnClient {
+    width: 100%;
+    margin-top: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    padding: 11px;
+    border: 1px solid #33506e;
+    border-radius: 8px;
+    background: #ffffff;
+    color: #33506e;
+    cursor: pointer;
+  }
+  #btnClient:hover { background: #eef3f8; }
 
   /* ---------- Barre du haut ---------- */
   header {
@@ -87,7 +100,7 @@
   #sessionBadge.g1 { background: #2e7d32; }
   #sessionBadge.g2 { background: #1565c0; }
   .nav { display: flex; align-items: center; gap: 8px; }
-  .nav button, #btnLogout {
+  .nav button, #btnLogout, #btnArchives {
     font-size: 15px;
     padding: 8px 14px;
     border: 1px solid #9aa7b1;
@@ -96,8 +109,8 @@
     color: #1c2733;
     cursor: pointer;
   }
-  .nav button:hover, #btnLogout:hover { background: #dde4ea; }
-  #btnLogout { margin-left: auto; }
+  .nav button:hover, #btnLogout:hover, #btnArchives:hover { background: #dde4ea; }
+  #btnArchives { margin-left: auto; }
   #weekLabel { font-size: 17px; font-weight: 700; margin-left: 6px; }
   .legend {
     display: flex;
@@ -115,7 +128,40 @@
   }
   .sw.g1 { background: #43a047; }
   .sw.g2 { background: #1e88e5; }
+  .sw.free { background: #7cc47f; }
+  .sw.taken { background: #f3d1d1; }
   #syncStatus { margin-left: 14px; font-size: 13px; font-style: italic; color: #6a7889; }
+
+  /* ---------- Vue client ---------- */
+  #clientTitle { font-size: 20px; font-weight: 700; padding: 9px 4px; }
+  .csel { display: flex; gap: 8px; }
+  .csel button, #btnClientBack {
+    font-size: 15px;
+    padding: 8px 14px;
+    border: 1px solid #9aa7b1;
+    border-radius: 6px;
+    background: #eef1f4;
+    color: #1c2733;
+    cursor: pointer;
+  }
+  .csel button:hover, #btnClientBack:hover { background: #dde4ea; }
+  #clientSelG1.active { background: #2e7d32; border-color: #2e7d32; color: #ffffff; font-weight: 700; }
+  #clientSelG2.active { background: #1565c0; border-color: #1565c0; color: #ffffff; font-weight: 700; }
+  #clientWeekLabel { font-size: 17px; font-weight: 700; margin-left: 6px; }
+  #btnClientBack { margin-left: auto; }
+  .ccell {
+    height: 42px;
+    border-radius: 5px;
+    border: 1px solid rgba(0,0,0,.18);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .ccell.free { background: #b9e4b9; }
+  .ccell.taken { background: #f3d1d1; color: #b71c1c; }
 
   /* ---------- Grille ---------- */
   main { flex: 1; overflow: auto; padding: 10px 14px 16px; }
@@ -161,12 +207,21 @@
     overflow: hidden;
     border: 1px solid rgba(0,0,0,.18);
   }
-  .cell .txt {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+  .cell .nm {
+    display: block;
+    font-weight: 700;
+    white-space: nowrap;
     overflow: hidden;
-    word-break: break-word;
+    text-overflow: ellipsis;
+  }
+  .cell .pl {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    opacity: .9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   /* Couleurs : vert = Garage 1, bleu = Garage 2 */
   .cell.g1 { background: #cdeccd; }
@@ -198,16 +253,29 @@
     box-shadow: 0 12px 40px rgba(0,0,0,.35);
   }
   #dialog h2 { font-size: 19px; margin-bottom: 4px; }
-  #dialog .when { font-size: 15px; color: #43536a; margin-bottom: 14px; }
-  #dialog textarea {
+  #dialog .when { font-size: 15px; color: #43536a; margin-bottom: 6px; }
+  #dialog label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #43536a;
+    margin: 12px 0 4px;
+  }
+  #dialog input[type="text"], #dialog input[type="tel"] {
     width: 100%;
-    min-height: 84px;
     font: inherit;
     font-size: 16px;
     padding: 9px;
     border: 1px solid #9aa7b1;
     border-radius: 6px;
-    resize: vertical;
+  }
+  #dialog input:focus { border-color: #33506e; outline: none; }
+  #dlgError {
+    min-height: 20px;
+    margin-top: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #c62828;
   }
   #dialog .row { display: flex; gap: 8px; margin-top: 16px; }
   #dialog button {
@@ -220,6 +288,58 @@
   }
   #btnSave { background: #2e7d32; border-color: #2e7d32; color: #fff; font-weight: 700; margin-left: auto; }
   #btnDelete { background: #fbe9e7; border-color: #c62828; color: #c62828; }
+
+  /* ---------- Fenêtre archives (lecture seule) ---------- */
+  #archOverlay {
+    position: fixed; inset: 0;
+    background: rgba(20, 30, 40, .45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 10;
+  }
+  #archOverlay[hidden] { display: none; }
+  #archDialog {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 22px;
+    width: min(760px, 94vw);
+    max-height: 86vh;
+    overflow: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,.35);
+  }
+  #archDialog h2 { font-size: 19px; margin-bottom: 4px; }
+  #archDialog .archSub { font-size: 14px; color: #43536a; margin-bottom: 8px; }
+  .archMonth {
+    font-size: 16px;
+    margin: 16px 0 6px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #d7dce1;
+    text-transform: capitalize;
+  }
+  .archRow {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 6px 2px;
+    border-bottom: 1px solid #eef1f4;
+    font-size: 14px;
+    flex-wrap: wrap;
+  }
+  .archRow .sw { flex: none; }
+  .archWhen { color: #43536a; white-space: nowrap; }
+  .archNom { font-weight: 700; }
+  .archDet { color: #43536a; }
+  .archGarage { margin-left: auto; color: #6a7889; font-size: 13px; }
+  .archEmpty { font-size: 15px; color: #43536a; padding: 10px 0; }
+  #archDialog .row { display: flex; margin-top: 16px; }
+  #btnArchClose {
+    font-size: 15px;
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: 1px solid #9aa7b1;
+    background: #eef1f4;
+    cursor: pointer;
+    margin-left: auto;
+  }
 </style>
 </head>
 <body>
@@ -235,6 +355,7 @@
       <div id="loginError" role="alert"></div>
       <button id="btnLogin" type="submit">Entrer</button>
     </form>
+    <button id="btnClient" type="button">Voir les disponibilités (client)</button>
   </div>
 </div>
 
@@ -253,6 +374,7 @@
       <span class="sw g2"></span> Garage 2
       <span id="syncStatus"></span>
     </div>
+    <button id="btnArchives">Archives</button>
     <button id="btnLogout">Quitter</button>
   </header>
 
@@ -261,15 +383,58 @@
   </main>
 </div>
 
+<!-- ============ VUE CLIENT (disponibilités, lecture seule, sans accès) ============ -->
+<div id="clientScreen" hidden>
+  <header>
+    <span id="clientTitle">Disponibilités</span>
+    <div class="csel">
+      <button id="clientSelG1" type="button">Garage 1</button>
+      <button id="clientSelG2" type="button">Garage 2</button>
+    </div>
+    <div class="nav">
+      <button id="clientPrevWeek" title="Semaine précédente">‹ Préc.</button>
+      <button id="clientTodayBtn">Aujourd'hui</button>
+      <button id="clientNextWeek" title="Semaine suivante">Suiv. ›</button>
+      <span id="clientWeekLabel"></span>
+    </div>
+    <div class="legend">
+      <span class="sw free"></span> Libre
+      <span class="sw taken"></span> Pris
+    </div>
+    <button id="btnClientBack">Retour</button>
+  </header>
+
+  <main>
+    <table id="clientGrid"></table>
+  </main>
+</div>
+
 <div id="overlay" hidden>
   <div id="dialog" role="dialog" aria-modal="true">
     <h2 id="dlgTitle">Rendez-vous</h2>
     <div class="when" id="dlgWhen"></div>
-    <textarea id="dlgText" placeholder="Ex. : pose pneus hiver — 4 roues"></textarea>
+    <label for="dlgNom">Nom :</label>
+    <input id="dlgNom" type="text" autocomplete="off" placeholder="Nom du client">
+    <label for="dlgTel">Tél :</label>
+    <input id="dlgTel" type="tel" autocomplete="off" placeholder="Téléphone (facultatif)">
+    <label for="dlgPlaque"># plaque :</label>
+    <input id="dlgPlaque" type="text" autocomplete="off" placeholder="Plaque (facultatif)">
+    <div id="dlgError" role="alert"></div>
     <div class="row">
       <button id="btnDelete" hidden>Supprimer</button>
       <button id="btnCancel">Annuler</button>
       <button id="btnSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<div id="archOverlay" hidden>
+  <div id="archDialog" role="dialog" aria-modal="true">
+    <h2>Archives</h2>
+    <p class="archSub">Rendez-vous de plus de 30 jours, classés par mois — lecture seule.</p>
+    <div id="archList"></div>
+    <div class="row">
+      <button id="btnArchClose">Fermer</button>
     </div>
   </div>
 </div>
@@ -281,19 +446,21 @@
 <script>
 "use strict";
 /* =====================================================================
-   CONFIGURATION FIREBASE — À REMPLIR POUR LA MISE EN LIGNE
+   CONFIGURATION FIREBASE — BRANCHÉE (projet « agenda-rendez-vous-c9657 »)
    ---------------------------------------------------------------------
-   Créer un projet gratuit sur https://console.firebase.google.com
-   (Realtime Database), puis coller ici les valeurs du projet.
-   TANT QUE « databaseURL » EST VIDE : la page fonctionne en MODE DÉMO
-   (données gardées dans le navigateur, sur cet ordinateur seulement).
+   La page synchronise les rendez-vous en temps réel entre les deux
+   ordinateurs (Realtime Database). Si la configuration était vidée
+   (databaseURL vide), la page retomberait en MODE DÉMO (données
+   gardées dans le navigateur, sur cet ordinateur seulement).
    ===================================================================== */
 const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  databaseURL: "",          // <-- ex. : "https://pneus-rdv-xxxx-default-rtdb.firebaseio.com"
-  projectId: "",
-  appId: ""
+  apiKey: "AIzaSyBf87u7E2vaqD7NSTMYFSreVHKd03VvvDk",
+  authDomain: "agenda-rendez-vous-c9657.firebaseapp.com",
+  databaseURL: "https://agenda-rendez-vous-c9657-default-rtdb.firebaseio.com",
+  projectId: "agenda-rendez-vous-c9657",
+  storageBucket: "agenda-rendez-vous-c9657.firebasestorage.app",
+  messagingSenderId: "136767538573",
+  appId: "1:136767538573:web:14670e9a4e146915e7e9c4"
 };
 
 /* ---------------- Constantes ---------------- */
@@ -307,11 +474,15 @@ const SLOT_MIN = 30;               // créneaux de 30 minutes
 const JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 const MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin",
               "juill.", "août", "sept.", "oct.", "nov.", "déc."];
+const MOIS_LONGS = ["janvier", "février", "mars", "avril", "mai", "juin",
+                    "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 
 /* ---------------- État ---------------- */
 let currentUser = null;            // "g1" | "g2" | null (écran d'accès)
+let clientOpen = false;            // vue client (disponibilités) affichée
+let clientGarage = "g1";           // garage montré dans la vue client
 let weekOffset = 0;                // 0 = semaine courante
-let bookings = { g1: {}, g2: {} }; // bookings[garage][dateISO][cleHeure] = { text }
+let bookings = { g1: {}, g2: {} }; // bookings[garage][dateISO][cleHeure] = { nom, tel, plaque }
 let editing = null;                // { date, key } en cours d'édition
 
 /* ---------------- Dates ---------------- */
@@ -338,21 +509,45 @@ function slotKeys() {
   return keys;
 }
 function keyLabel(key) { return key.slice(0, 2) + " h " + key.slice(2); }
-function esc(s) { return String(s).replace(/</g, "&lt;").replace(/"/g, "&quot;"); }
+function esc(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+/* Normalise une entrée stockée vers { nom, tel, plaque }.
+   Compatibilité : les anciennes entrées { text } sont lues comme un nom. */
+function normEntry(entry) {
+  if (!entry) return null;
+  const nom = entry.nom || entry.text || "";
+  const tel = entry.tel || "";
+  const plaque = entry.plaque || "";
+  if (!nom && !tel && !plaque) return null;
+  return { nom: nom, tel: tel, plaque: plaque };
+}
 </script>
 
 <script>
 /* =====================================================================
    COUCHE DONNÉES — deux modes :
    1) FIREBASE (si configuré) : synchronisation temps réel entre les
-      deux ordinateurs, structure : rdv/g1/<date>/<heure> = { text }
-      (g1 = cases vertes / Garage 1, g2 = cases bleues / Garage 2)
+      deux ordinateurs, structure : rdv/g1/<date>/<heure> =
+      { nom, tel, plaque } (g1 = cases vertes / Garage 1,
+      g2 = cases bleues / Garage 2) ; archives mensuelles sous
+      rdv_archive/<AAAA-MM>/<garage>/<date>/<heure>.
    2) DÉMO (sinon) : localStorage de ce navigateur + événement
       « storage » pour synchroniser les onglets/fenêtres du même poste.
    ===================================================================== */
 const DEMO_KEY = "pneus-rdv-demo-v1";
+const DEMO_ARCH_KEY = "pneus-rdv-archive-v1";
 const demoMode = !firebaseConfig.databaseURL;
+let useLocal = demoMode;  // passe aussi à true en repli si Firebase est injoignable
 let dbRef = null;
+let archRef = null;
+let archives = {};        // archives["AAAA-MM"][garage][date][heure] = { nom, tel, plaque }
+let archivingDone = false;
 
 function loadDemo() {
   try {
@@ -363,53 +558,126 @@ function loadDemo() {
 function saveDemo() {
   try { localStorage.setItem(DEMO_KEY, JSON.stringify(bookings)); } catch (e) {}
 }
+function loadDemoArchives() {
+  try {
+    const raw = localStorage.getItem(DEMO_ARCH_KEY);
+    archives = raw ? (JSON.parse(raw) || {}) : {};
+  } catch (e) { archives = {}; }
+}
+function saveDemoArchives() {
+  try { localStorage.setItem(DEMO_ARCH_KEY, JSON.stringify(archives)); } catch (e) {}
+}
 
-function setBooking(garage, date, key, text) {
+function setBooking(garage, date, key, data) {
+  // data = { nom, tel, plaque } pour enregistrer, null pour supprimer.
   // Garde-fou : on n'écrit JAMAIS dans la couleur de l'autre garage
   if (garage !== currentUser) return;
-  if (demoMode) {
+  if (useLocal) {
     if (!bookings[garage][date]) bookings[garage][date] = {};
-    if (text) bookings[garage][date][key] = { text: text };
+    if (data) bookings[garage][date][key] = data;
     else {
       delete bookings[garage][date][key];
       if (!Object.keys(bookings[garage][date]).length) delete bookings[garage][date];
     }
     saveDemo();
-    render();
+    renderActive();
   } else {
     const ref = dbRef.child(garage + "/" + date + "/" + key);
-    if (text) ref.set({ text: text, maj: Date.now() });
+    if (data) ref.set({ nom: data.nom, tel: data.tel || "", plaque: data.plaque || "", maj: Date.now() });
     else ref.remove();
     // le rendu se fait par l'écouteur temps réel (on value)
+  }
+}
+
+/* ---------------- Archivage mensuel ----------------
+   À chaque chargement, les rendez-vous dont la date est passée
+   depuis PLUS DE 30 JOURS sont déplacés dans les archives,
+   classés par mois (« dossier » AAAA-MM) :
+   - Firebase : rdv_archive/<AAAA-MM>/<garage>/<date>/<heure>
+   - Démo : localStorage, même structure. */
+function isArchivable(dateIso) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - 30);
+  return dateIso < isoDate(d); // strictement plus de 30 jours passés
+}
+function collectArchivable() {
+  const moves = [];
+  ["g1", "g2"].forEach(function (g) {
+    const byDate = bookings[g] || {};
+    Object.keys(byDate).forEach(function (date) {
+      if (!isArchivable(date)) return;
+      Object.keys(byDate[date] || {}).forEach(function (key) {
+        const entry = normEntry(byDate[date][key]);
+        if (entry) moves.push({ garage: g, date: date, key: key, entry: entry, mois: date.slice(0, 7) });
+      });
+    });
+  });
+  return moves;
+}
+function archiveOldBookings() {
+  const moves = collectArchivable();
+  if (!moves.length) return;
+  if (useLocal) {
+    moves.forEach(function (m) {
+      if (!archives[m.mois]) archives[m.mois] = { g1: {}, g2: {} };
+      if (!archives[m.mois][m.garage]) archives[m.mois][m.garage] = {};
+      if (!archives[m.mois][m.garage][m.date]) archives[m.mois][m.garage][m.date] = {};
+      archives[m.mois][m.garage][m.date][m.key] = m.entry;
+      delete bookings[m.garage][m.date][m.key];
+      if (!Object.keys(bookings[m.garage][m.date]).length) delete bookings[m.garage][m.date];
+    });
+    saveDemo();
+    saveDemoArchives();
+    renderActive();
+  } else if (dbRef && archRef) {
+    moves.forEach(function (m) {
+      archRef.child(m.mois + "/" + m.garage + "/" + m.date + "/" + m.key).set(m.entry);
+      dbRef.child(m.garage + "/" + m.date + "/" + m.key).remove();
+    });
+    // les écouteurs temps réel resynchroniseront bookings et archives
   }
 }
 
 function initData() {
   const status = document.getElementById("syncStatus");
   if (demoMode || typeof firebase === "undefined") {
+    useLocal = true;
     loadDemo();
+    loadDemoArchives();
     status.textContent = "Mode démo — données sur cet ordinateur seulement";
     window.addEventListener("storage", function (e) {
-      if (e.key === DEMO_KEY) { loadDemo(); render(); }
+      if (e.key === DEMO_KEY) { loadDemo(); renderActive(); }
+      if (e.key === DEMO_ARCH_KEY) { loadDemoArchives(); if (!archOverlay.hidden) renderArchives(); }
     });
-    render();
+    archiveOldBookings();
+    renderActive();
     return;
   }
   try {
     firebase.initializeApp(firebaseConfig);
     dbRef = firebase.database().ref("rdv");
+    archRef = firebase.database().ref("rdv_archive");
     status.textContent = "Synchronisé";
+    archRef.on("value", function (snap) {
+      archives = snap.val() || {};
+      if (!archOverlay.hidden) renderArchives();
+    });
     dbRef.on("value", function (snap) {
       bookings = Object.assign({ g1: {}, g2: {} }, snap.val() || {});
-      render();
+      if (!archivingDone) { archivingDone = true; archiveOldBookings(); }
+      renderActive();
     }, function () {
       status.textContent = "Synchronisation interrompue — vérifiez la connexion";
     });
   } catch (e) {
     // Configuration invalide : repli en mode démo pour ne jamais bloquer le garage
+    useLocal = true;
     loadDemo();
+    loadDemoArchives();
     status.textContent = "Mode démo — données sur cet ordinateur seulement";
-    render();
+    archiveOldBookings();
+    renderActive();
   }
 }
 
@@ -419,12 +687,22 @@ function initData() {
    Seule la couleur de l'utilisateur connecté est cliquable ;
    l'autre s'affiche en lecture seule, atténuée. */
 function cellHtml(garage, date, key) {
-  const entry = ((bookings[garage] || {})[date] || {})[key];
+  const entry = normEntry(((bookings[garage] || {})[date] || {})[key]);
   const mine = garage === currentUser;
-  let cls = "cell " + garage + (mine ? " mine" : " theirs") + (entry && entry.text ? " booked" : "");
+  let cls = "cell " + garage + (mine ? " mine" : " theirs") + (entry ? " booked" : "");
   let inner = "";
-  if (entry && entry.text) inner = "<span class='txt'>" + esc(entry.text) + "</span>";
-  const title = entry && entry.text ? " title='" + esc(entry.text) + "'" : "";
+  if (entry) {
+    // Le nom en évidence ; le # de plaque en petit en dessous, si présent
+    inner = "<span class='nm'>" + esc(entry.nom) + "</span>";
+    if (entry.plaque) inner += "<span class='pl'>#" + esc(entry.plaque) + "</span>";
+  }
+  let titleTxt = "";
+  if (entry) {
+    titleTxt = entry.nom;
+    if (entry.plaque) titleTxt += " — #" + entry.plaque;
+    if (entry.tel) titleTxt += " — " + entry.tel;
+  }
+  const title = titleTxt ? " title='" + esc(titleTxt) + "'" : "";
   const data = mine ? " data-date='" + date + "' data-key='" + key + "'" : "";
   return "<div class='" + cls + "'" + data + title + ">" + inner + "</div>";
 }
@@ -463,24 +741,76 @@ function render() {
   grid.innerHTML = html;
 }
 
-/* ---------------- Fenêtre d'édition (sa couleur seulement) ---------------- */
+/* Rafraîchit la vue affichée (agenda du garage ou vue client) */
+function renderActive() {
+  if (currentUser) render();
+  if (clientOpen) renderClient();
+}
+
+/* ---------------- Vue CLIENT (lecture seule, sans accès) ----------------
+   Montre seulement les disponibilités d'UN garage à la fois :
+   case verte vide = libre ; case avec « ✗ » bien visible = pris.
+   AUCUN détail de rendez-vous n'est affiché (jamais les noms, les
+   tél ou les plaques), aucun clic possible, aucune modification. */
+function renderClient() {
+  if (!clientOpen) return;
+  const days = weekDays();
+  const todayIso = isoDate(new Date());
+  const first = days[0], last = days[5];
+  document.getElementById("clientWeekLabel").textContent =
+    "Semaine du " + first.getDate() + " " + MOIS[first.getMonth()] +
+    " au " + last.getDate() + " " + MOIS[last.getMonth()] + " " + last.getFullYear();
+  document.getElementById("clientSelG1").classList.toggle("active", clientGarage === "g1");
+  document.getElementById("clientSelG2").classList.toggle("active", clientGarage === "g2");
+
+  const grid = document.getElementById("clientGrid");
+  let html = "<thead><tr><th>Heure</th>";
+  days.forEach(function (d, i) {
+    const isToday = isoDate(d) === todayIso;
+    html += "<th class='" + (isToday ? "today" : "") + "'><span class='dow'>" + JOURS[i] +
+            "</span>" + d.getDate() + " " + MOIS[d.getMonth()] + "</th>";
+  });
+  html += "</tr></thead><tbody>";
+  slotKeys().forEach(function (key) {
+    html += "<tr><td class='time'>" + keyLabel(key) + "</td>";
+    days.forEach(function (d) {
+      const date = isoDate(d);
+      // Seule la PRÉSENCE d'un rendez-vous est lue — jamais son contenu
+      const taken = !!normEntry(((bookings[clientGarage] || {})[date] || {})[key]);
+      html += "<td class='slot'><div class='ccell " + (taken ? "taken" : "free") + "'>" +
+              (taken ? "✗" : "") + "</div></td>";
+    });
+    html += "</tr>";
+  });
+  html += "</tbody>";
+  grid.innerHTML = html;
+}
+
+/* ---------------- Fenêtre d'édition (sa couleur seulement) ----------------
+   Le formulaire contient EXACTEMENT trois champs : Nom, Tél, # plaque. */
 const overlay = document.getElementById("overlay");
-const dlgText = document.getElementById("dlgText");
+const dlgNom = document.getElementById("dlgNom");
+const dlgTel = document.getElementById("dlgTel");
+const dlgPlaque = document.getElementById("dlgPlaque");
+const dlgError = document.getElementById("dlgError");
 const btnDelete = document.getElementById("btnDelete");
 
 function openEditor(date, key) {
   if (!currentUser) return;
   editing = { date: date, key: key };
-  const entry = ((bookings[currentUser] || {})[date] || {})[key];
+  const entry = normEntry(((bookings[currentUser] || {})[date] || {})[key]);
   const d = new Date(date + "T12:00:00");
   document.getElementById("dlgTitle").textContent = entry ? "Modifier le rendez-vous" : "Nouveau rendez-vous";
   document.getElementById("dlgWhen").textContent =
     GARAGE_LABEL[currentUser] + " — " + JOURS[(d.getDay() + 6) % 7] + " " + d.getDate() + " " +
     MOIS[d.getMonth()] + " " + d.getFullYear() + ", " + keyLabel(key);
-  dlgText.value = entry ? entry.text : "";
+  dlgNom.value = entry ? entry.nom : "";
+  dlgTel.value = entry ? entry.tel : "";
+  dlgPlaque.value = entry ? entry.plaque : "";
+  dlgError.textContent = "";
   btnDelete.hidden = !entry;
   overlay.hidden = false;
-  dlgText.focus();
+  dlgNom.focus();
 }
 function closeEditor() { overlay.hidden = true; editing = null; }
 
@@ -491,21 +821,83 @@ document.getElementById("grid").addEventListener("click", function (e) {
 });
 document.getElementById("btnSave").addEventListener("click", function () {
   if (!editing) return;
-  const text = dlgText.value.trim();
-  if (text) setBooking(currentUser, editing.date, editing.key, text);
+  const nom = dlgNom.value.trim();
+  if (!nom) {
+    // Le nom est obligatoire : on n'enregistre pas sans lui
+    dlgError.textContent = "Le nom est obligatoire.";
+    dlgNom.focus();
+    return;
+  }
+  setBooking(currentUser, editing.date, editing.key, {
+    nom: nom,
+    tel: dlgTel.value.trim(),
+    plaque: dlgPlaque.value.trim()
+  });
   closeEditor();
 });
 document.getElementById("btnDelete").addEventListener("click", function () {
   if (!editing) return;
-  setBooking(currentUser, editing.date, editing.key, "");
+  setBooking(currentUser, editing.date, editing.key, null);
   closeEditor();
 });
 document.getElementById("btnCancel").addEventListener("click", closeEditor);
 overlay.addEventListener("click", function (e) { if (e.target === overlay) closeEditor(); });
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape" && !overlay.hidden) closeEditor();
+  if (e.key === "Escape" && !archOverlay.hidden) closeArchives();
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !overlay.hidden) document.getElementById("btnSave").click();
 });
+
+/* ---------------- Archives (lecture seule) ----------------
+   Les rendez-vous archivés, classés par mois (« dossier » AAAA-MM).
+   Nom, tél, # plaque, date, heure et couleur du garage sont montrés ;
+   AUCUNE modification n'est possible dans cette vue. */
+const archOverlay = document.getElementById("archOverlay");
+const archList = document.getElementById("archList");
+
+function monthLabel(mois) {
+  const y = mois.slice(0, 4);
+  const m = parseInt(mois.slice(5, 7), 10);
+  return MOIS_LONGS[m - 1] + " " + y;
+}
+function renderArchives() {
+  const months = Object.keys(archives).sort().reverse();
+  let html = "";
+  months.forEach(function (mois) {
+    const rows = [];
+    ["g1", "g2"].forEach(function (g) {
+      const byDate = (archives[mois] || {})[g] || {};
+      Object.keys(byDate).forEach(function (date) {
+        Object.keys(byDate[date] || {}).forEach(function (key) {
+          const e = normEntry(byDate[date][key]);
+          if (e) rows.push({ g: g, date: date, key: key, e: e });
+        });
+      });
+    });
+    if (!rows.length) return;
+    rows.sort(function (a, b) { return (a.date + a.key) < (b.date + b.key) ? -1 : 1; });
+    html += "<h3 class='archMonth'>" + esc(monthLabel(mois)) + "</h3>";
+    rows.forEach(function (r) {
+      const d = new Date(r.date + "T12:00:00");
+      const when = JOURS[(d.getDay() + 6) % 7] + " " + d.getDate() + " " + MOIS[d.getMonth()] + " " +
+                   d.getFullYear() + " — " + keyLabel(r.key);
+      let det = "";
+      if (r.e.tel) det = "Tél : " + esc(r.e.tel);
+      if (r.e.plaque) det += (det ? " · " : "") + "#" + esc(r.e.plaque);
+      html += "<div class='archRow'><span class='sw " + r.g + "'></span>" +
+              "<span class='archWhen'>" + when + "</span>" +
+              "<span class='archNom'>" + esc(r.e.nom) + "</span>" +
+              (det ? "<span class='archDet'>" + det + "</span>" : "") +
+              "<span class='archGarage'>" + GARAGE_LABEL[r.g] + "</span></div>";
+    });
+  });
+  archList.innerHTML = html || "<p class='archEmpty'>Aucun rendez-vous archivé pour le moment.</p>";
+}
+function openArchives() { renderArchives(); archOverlay.hidden = false; }
+function closeArchives() { archOverlay.hidden = true; }
+document.getElementById("btnArchives").addEventListener("click", openArchives);
+document.getElementById("btnArchClose").addEventListener("click", closeArchives);
+archOverlay.addEventListener("click", function (e) { if (e.target === archOverlay) closeArchives(); });
 
 /* ---------------- Accès / session ---------------- */
 const loginScreen = document.getElementById("loginScreen");
@@ -543,6 +935,28 @@ document.getElementById("loginForm").addEventListener("submit", function (e) {
   }
 });
 document.getElementById("btnLogout").addEventListener("click", exitApp);
+
+/* ---------------- Vue client : entrée / sortie / sélecteur ---------------- */
+const clientScreen = document.getElementById("clientScreen");
+function enterClient() {
+  clientOpen = true;
+  loginScreen.hidden = true;
+  clientScreen.hidden = false;
+  renderClient();
+}
+function exitClient() {
+  clientOpen = false;
+  clientScreen.hidden = true;
+  loginScreen.hidden = false;
+  loginCode.focus();
+}
+document.getElementById("btnClient").addEventListener("click", enterClient);
+document.getElementById("btnClientBack").addEventListener("click", exitClient);
+document.getElementById("clientSelG1").addEventListener("click", function () { clientGarage = "g1"; renderClient(); });
+document.getElementById("clientSelG2").addEventListener("click", function () { clientGarage = "g2"; renderClient(); });
+document.getElementById("clientPrevWeek").addEventListener("click", function () { weekOffset--; renderClient(); });
+document.getElementById("clientNextWeek").addEventListener("click", function () { weekOffset++; renderClient(); });
+document.getElementById("clientTodayBtn").addEventListener("click", function () { weekOffset = 0; renderClient(); });
 
 /* ---------------- Navigation ---------------- */
 document.getElementById("prevWeek").addEventListener("click", function () { weekOffset--; render(); });
