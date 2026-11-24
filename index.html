@@ -353,6 +353,8 @@
     border-radius: 10px;
     padding: 22px;
     width: min(480px, 92vw);
+    max-height: 92vh;
+    overflow-y: auto;
     box-shadow: 0 12px 40px rgba(0,0,0,.35);
   }
   .modalBox h2 { font-size: 19px; margin-bottom: 4px; }
@@ -373,6 +375,41 @@
     border-radius: 6px;
   }
   .modalBox input:focus { border-color: #33506e; outline: none; }
+  .modalBox select {
+    width: 100%;
+    font: inherit;
+    font-size: 16px;
+    padding: 9px;
+    border: 1px solid #9aa7b1;
+    border-radius: 6px;
+    background: #ffffff;
+  }
+  .modalBox select:focus { border-color: #33506e; outline: none; }
+  .modalBox select:disabled { background: #eef1f4; color: #7a8794; }
+  /* Grandeurs d'origine proposées : petites options cliquables */
+  #cPneusChoix { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  #cPneusChoix .chip {
+    font-size: 14px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid #33506e;
+    background: #eef3f8;
+    color: #24405c;
+    cursor: pointer;
+  }
+  #cPneusChoix .chip:hover { background: #d9e6f2; }
+  #cPneusChoix .chip.sel { background: #33506e; color: #fff; font-weight: 700; }
+  #cPneusChoix .chipLbl { font-size: 13px; color: #43536a; align-self: center; }
+  /* Véhicule du client, affiché en lecture seule dans la fenêtre du personnel */
+  #dlgVehicule {
+    margin-top: 14px;
+    font-size: 15px;
+    color: #24405c;
+    background: #eef3f8;
+    border: 1px solid #c9d6e2;
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
   .modalBox .err {
     min-height: 20px;
     margin-top: 10px;
@@ -470,8 +507,23 @@
     <input id="cTel" type="tel" autocomplete="off" placeholder="Téléphone (facultatif)">
     <label for="cPlaque"># plaque :</label>
     <input id="cPlaque" type="text" autocomplete="off" placeholder="Plaque (facultatif)">
+    <label for="cAnnee">Année du véhicule :</label>
+    <select id="cAnnee">
+      <option value="">— Choisir l'année (facultatif) —</option>
+    </select>
+    <label for="cMarque">Marque :</label>
+    <select id="cMarque" disabled>
+      <option value="">— Choisir la marque —</option>
+    </select>
+    <label for="cModele">Modèle :</label>
+    <select id="cModele" disabled>
+      <option value="">— Choisir le modèle —</option>
+    </select>
+    <input id="cVehiculeLibre" type="text" autocomplete="off"
+           placeholder="Votre véhicule (marque et modèle)" hidden>
     <label for="cPneus">Grandeur des pneus :</label>
     <input id="cPneus" type="text" autocomplete="off" placeholder="Ex. 205/55 R16 (facultatif)">
+    <div id="cPneusChoix"></div>
     <div class="err" id="cError" role="alert"></div>
     <div class="row">
       <button id="btnClientCancel" type="button">Annuler</button>
@@ -502,6 +554,7 @@
     <input id="dlgPlaque" type="text" autocomplete="off" placeholder="Plaque (facultatif)">
     <label for="dlgPneus">Grandeur des pneus :</label>
     <input id="dlgPneus" type="text" autocomplete="off" placeholder="Ex. 205/55 R16 (facultatif)">
+    <div id="dlgVehicule" hidden></div>
     <div id="dlgError" role="alert"></div>
     <div class="row">
       <button id="btnDelete" hidden>Supprimer</button>
@@ -548,8 +601,10 @@ const firebaseConfig = {
 
 /* ---------------- Constantes ---------------- */
 /* Accès : le nom d'utilisateur EST le numéro du garage.
-   1775 = Garage 1 (cases vertes) — 2850 = Garage 2 (cases bleues). */
-const USERS = { "1775": "g1", "2850": "g2" };
+   1745 = Garage 1 (cases vertes) — 2850 = Garage 2 (cases bleues).
+   (Code du Garage 1 corrigé le 24 nov. 2026 : 1745, le vrai numéro
+   civique du garage — l'ancien code 1775 n'est plus accepté.) */
+const USERS = { "1745": "g1", "2850": "g2" };
 const GARAGE_LABEL = { g1: "Garage 1", g2: "Garage 2" };
 const START_HOUR = 8;              // premier créneau : 8 h 00
 const END_HOUR = 17;               // fin de journée : 17 h 00
@@ -600,17 +655,32 @@ function esc(s) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
-/* Normalise une entrée stockée vers { nom, tel, plaque, pneus }.
+/* Normalise une entrée stockée vers { nom, tel, plaque, pneus, vehicule }.
    Compatibilité : les anciennes entrées { text } sont lues comme un nom,
-   et les entrées sans « pneus » (avant l'ajout du champ) donnent "". */
+   les entrées sans « pneus » (avant l'ajout du champ) donnent "", et les
+   entrées sans « vehicule » (avant le sélecteur de véhicule) donnent null. */
 function normEntry(entry) {
   if (!entry) return null;
   const nom = entry.nom || entry.text || "";
   const tel = entry.tel || "";
   const plaque = entry.plaque || "";
   const pneus = entry.pneus || "";
+  let vehicule = null;
+  const v = entry.vehicule;
+  if (v && (v.marque || v.modele || v.annee)) {
+    vehicule = {
+      annee: v.annee || "",
+      marque: v.marque || "",
+      modele: v.modele || ""
+    };
+  }
   if (!nom && !tel && !plaque && !pneus) return null;
-  return { nom: nom, tel: tel, plaque: plaque, pneus: pneus };
+  return { nom: nom, tel: tel, plaque: plaque, pneus: pneus, vehicule: vehicule };
+}
+/* « 2021 Ford F-150 » — texte d'affichage du véhicule (personnel/archives). */
+function vehiculeLabel(v) {
+  if (!v) return "";
+  return [v.annee, v.marque, v.modele].filter(function (x) { return !!x; }).join(" ");
 }
 </script>
 
@@ -668,7 +738,14 @@ function setBooking(garage, date, key, data) {
     renderActive();
   } else {
     const ref = dbRef.child(garage + "/" + date + "/" + key);
-    if (data) ref.set({ nom: data.nom, tel: data.tel || "", plaque: data.plaque || "", pneus: data.pneus || "", maj: Date.now() });
+    if (data) {
+      const rec = { nom: data.nom, tel: data.tel || "", plaque: data.plaque || "", pneus: data.pneus || "", maj: Date.now() };
+      // Le véhicule choisi par le client est conservé tel quel : le
+      // formulaire du personnel ne le modifie pas, on le réécrit donc
+      // à l'identique pour ne pas l'effacer lors d'une modification.
+      if (data.vehicule) rec.vehicule = data.vehicule;
+      ref.set(rec);
+    }
     else ref.remove();
     // le rendu se fait par l'écouteur temps réel (on value)
   }
@@ -676,7 +753,7 @@ function setBooking(garage, date, key, data) {
 
 /* ---------------- Réservation par un CLIENT ----------------
    Le client ne choisit pas le garage : le rendez-vous est inscrit
-   dans le garage où l'heure est libre — Garage 1 (1775) d'abord,
+   dans le garage où l'heure est libre — Garage 1 (1745) d'abord,
    sinon Garage 2 (2850). La disponibilité est revérifiée AU MOMENT
    de confirmer :
    - Mode démo : vérification et écriture immédiates (localStorage).
@@ -690,7 +767,9 @@ function clientBookLocal(date, key, data) {
     const g = order[i];
     if (!normEntry(((bookings[g] || {})[date] || {})[key])) {
       if (!bookings[g][date]) bookings[g][date] = {};
-      bookings[g][date][key] = { nom: data.nom, tel: data.tel || "", plaque: data.plaque || "", pneus: data.pneus || "" };
+      const rec = { nom: data.nom, tel: data.tel || "", plaque: data.plaque || "", pneus: data.pneus || "" };
+      if (data.vehicule) rec.vehicule = data.vehicule;
+      bookings[g][date][key] = rec;
       saveDemo();
       renderActive();
       return g;
@@ -702,7 +781,9 @@ function clientTryFirebase(garage, date, key, data) {
   const ref = dbRef.child(garage + "/" + date + "/" + key);
   return ref.transaction(function (cur) {
     if (normEntry(cur)) return undefined; // déjà pris : on avorte
-    return { nom: data.nom, tel: data.tel || "", plaque: data.plaque || "", pneus: data.pneus || "", maj: Date.now() };
+    const rec = { nom: data.nom, tel: data.tel || "", plaque: data.plaque || "", pneus: data.pneus || "", maj: Date.now() };
+    if (data.vehicule) rec.vehicule = data.vehicule;
+    return rec;
   }).then(function (res) { return !!(res && res.committed); });
 }
 function clientBook(date, key, data) {
@@ -945,6 +1026,18 @@ function openEditor(date, key) {
   dlgTel.value = entry ? entry.tel : "";
   dlgPlaque.value = entry ? entry.plaque : "";
   dlgPneus.value = entry ? entry.pneus : "";
+  // Véhicule choisi par le client : lecture seule, sous les champs.
+  // Le formulaire du personnel ne change pas ; le véhicule est
+  // conservé tel quel à l'enregistrement (voir btnSave).
+  const dlgVehicule = document.getElementById("dlgVehicule");
+  const vLab = entry ? vehiculeLabel(entry.vehicule) : "";
+  if (vLab) {
+    dlgVehicule.textContent = "Véhicule : " + vLab;
+    dlgVehicule.hidden = false;
+  } else {
+    dlgVehicule.textContent = "";
+    dlgVehicule.hidden = true;
+  }
   dlgError.textContent = "";
   btnDelete.hidden = !entry;
   overlay.hidden = false;
@@ -966,12 +1059,17 @@ document.getElementById("btnSave").addEventListener("click", function () {
     dlgNom.focus();
     return;
   }
-  setBooking(currentUser, editing.date, editing.key, {
+  // Le véhicule déjà enregistré (choisi par le client) est conservé
+  // tel quel : le personnel ne le saisit pas dans ce formulaire.
+  const existing = normEntry(((bookings[currentUser] || {})[editing.date] || {})[editing.key]);
+  const data = {
     nom: nom,
     tel: dlgTel.value.trim(),
     plaque: dlgPlaque.value.trim(),
     pneus: dlgPneus.value.trim()
-  });
+  };
+  if (existing && existing.vehicule) data.vehicule = existing.vehicule;
+  setBooking(currentUser, editing.date, editing.key, data);
   closeEditor();
 });
 document.getElementById("btnDelete").addEventListener("click", function () {
@@ -1027,6 +1125,8 @@ function renderArchives() {
       if (r.e.tel) det = "Tél : " + esc(r.e.tel);
       if (r.e.plaque) det += (det ? " · " : "") + "#" + esc(r.e.plaque);
       if (r.e.pneus) det += (det ? " · " : "") + "Pneus : " + esc(r.e.pneus);
+      const vLab = vehiculeLabel(r.e.vehicule);
+      if (vLab) det += (det ? " · " : "") + "Véhicule : " + esc(vLab);
       html += "<div class='archRow'><span class='sw " + r.g + "'></span>" +
               "<span class='archWhen'>" + when + "</span>" +
               "<span class='archNom'>" + esc(r.e.nom) + "</span>" +
@@ -1098,13 +1198,18 @@ document.getElementById("btnClient").addEventListener("click", enterClient);
 document.getElementById("btnClientBack").addEventListener("click", exitClient);
 
 /* ---------------- Réservation client : formulaire ----------------
-   Le client clique une case verte → formulaire avec EXACTEMENT
-   quatre champs (Nom, Tél, # plaque, Grandeur des pneus — même
-   présentation que celui des garages ; nom obligatoire) →
-   « Confirmer » : la disponibilité est revérifiée à cet instant
-   (voir clientBook) et le rendez-vous est inscrit au Garage 1
-   si l'heure y est libre, sinon au Garage 2. Un message confirme
-   en nommant le garage obtenu. */
+   Le client clique une case verte → formulaire : Nom, Tél,
+   # plaque, puis le SÉLECTEUR DE VÉHICULE (Année → Marque →
+   Modèle, en cascade, tous facultatifs — voir le registre
+   VEHICULES ci-dessous), puis la Grandeur des pneus (pré-remplie
+   ou proposée en options cliquables quand le registre connaît le
+   véhicule ; texte libre toujours possible) → « Confirmer » :
+   la disponibilité est revérifiée à cet instant (voir clientBook)
+   et le rendez-vous est inscrit au Garage 1 si l'heure y est
+   libre, sinon au Garage 2. Un message confirme en nommant le
+   garage obtenu. L'objet stocké devient
+   { nom, tel, plaque, pneus, vehicule: { annee, marque, modele } }
+   (vehicule absent si le client n'a rien choisi). */
 const clientOverlay = document.getElementById("clientOverlay");
 const cNom = document.getElementById("cNom");
 const cTel = document.getElementById("cTel");
@@ -1114,6 +1219,319 @@ const cError = document.getElementById("cError");
 const btnClientConfirm = document.getElementById("btnClientConfirm");
 const msgOverlay = document.getElementById("msgOverlay");
 const msgText = document.getElementById("msgText");
+
+/* =====================================================================
+   REGISTRE DES VÉHICULES — sélecteur « comme Canadian Tire »
+   ---------------------------------------------------------------------
+   Marques et modèles courants au Canada/Québec, avec les grandeurs
+   de pneus D'ORIGINE (OEM) par plage d'années, établies par recherche
+   web le 24 nov. 2026. Sources : blackcircles.ca (tableaux canadiens
+   par année), tiresizes.com / tiresize.com, fitmentchart.com,
+   garagegauge.com, tirecalculatorhub.com, visualizer.threepiece.us
+   (données DriveRight), manuels et fiches constructeurs cités par
+   ces sources. Une grandeur n'est inscrite que lorsqu'elle est bien
+   établie pour la génération ; les finitions spéciales peuvent
+   différer — le client peut toujours écrire sa grandeur en texte
+   libre, et le repli « Autre marque / autre modèle » couvre tout
+   véhicule absent du registre. Les trois champs sont facultatifs :
+   le formulaire ne bloque jamais.
+   Format : marque -> modèle -> [ [annéeDébut, annéeFin, [grandeurs]] ]
+   ===================================================================== */
+const VEHICULES = {
+  "Ford": {
+    "F-150": [[2009,2014,["235/70 R17","265/70 R17","275/65 R18","275/55 R20"]],[2015,2020,["245/70 R17","265/70 R17","265/60 R18","275/65 R18","275/55 R20"]],[2021,2026,["245/70 R17","265/70 R17","265/60 R18","275/65 R18","275/60 R20","275/50 R22"]]],
+    "Escape": [[2008,2012,["235/70 R16","225/65 R17"]],[2013,2019,["235/55 R17","235/50 R18","235/45 R19"]],[2020,2026,["225/65 R17","225/60 R18","225/55 R19"]]],
+    "Explorer": [[2011,2019,["245/65 R17","245/60 R18","255/50 R20"]],[2020,2026,["255/65 R18","265/65 R18","255/55 R20","275/45 R21"]]],
+    "Edge": [[2011,2014,["235/65 R17","245/60 R18","245/50 R20"]],[2015,2024,["245/60 R18","245/55 R19","245/50 R20"]]],
+    "Ranger": [[2019,2023,["255/70 R16","265/65 R17","265/60 R18"]],[2024,2026,["255/70 R17","265/70 R17","285/65 R18"]]],
+    "Maverick": [[2022,2026,["225/65 R17","225/60 R18","235/65 R17"]]],
+    "Bronco Sport": [[2021,2026,["225/65 R17","225/60 R18","235/65 R17"]]],
+    "Fusion": [[2013,2020,["215/60 R16","225/50 R17","235/45 R18","235/40 R19"]]],
+    "Focus": [[2012,2018,["195/65 R15","205/55 R16","215/50 R17","235/40 R18"]]],
+    "Mustang": [[2015,2023,["235/55 R17","235/50 R18","255/40 R19"]],[2024,2026,["255/40 R19","255/35 R20"]]]
+  },
+  "Chevrolet": {
+    "Silverado 1500": [[2007,2013,["245/70 R17","265/70 R17","265/65 R18","275/55 R20"]],[2014,2018,["255/70 R17","265/70 R17","265/65 R18","275/55 R20"]],[2019,2026,["255/70 R17","265/70 R17","265/65 R18","275/60 R20","275/50 R22"]]],
+    "Equinox": [[2010,2017,["225/65 R17","235/55 R18"]],[2018,2024,["225/65 R17","225/60 R18","235/50 R19"]],[2025,2026,["235/65 R17","235/55 R19","235/50 R20"]]],
+    "Traverse": [[2009,2026,["255/65 R18","255/55 R20"]]],
+    "Tahoe": [[2015,2020,["265/65 R18","275/55 R20","285/45 R22"]],[2021,2026,["265/65 R18","275/60 R20","275/50 R22"]]],
+    "Colorado": [[2015,2022,["255/65 R17","265/65 R17","265/60 R18"]],[2023,2026,["265/65 R17","275/60 R20","255/55 R20"]]],
+    "Malibu": [[2013,2015,["215/60 R16","215/55 R17","225/45 R18"]],[2016,2025,["205/65 R16","225/50 R17","245/40 R19"]]],
+    "Blazer": [[2019,2025,["235/65 R18","235/55 R20","265/45 R21"]]],
+    "Trax": [[2024,2026,["225/60 R17","225/55 R18","225/45 R19"]]]
+  },
+  "GMC": {
+    "Sierra 1500": [[2007,2013,["245/70 R17","265/70 R17","265/65 R18","275/55 R20"]],[2014,2018,["255/70 R17","265/70 R17","265/65 R18","275/55 R20"]],[2019,2026,["265/65 R18","275/65 R18","275/60 R20","275/50 R22"]]],
+    "Acadia": [[2017,2023,["245/65 R17","235/65 R18","255/55 R20"]],[2024,2026,["255/65 R18","255/55 R20","275/45 R22"]]],
+    "Terrain": [[2010,2017,["225/65 R17","235/55 R18","235/50 R19"]],[2018,2024,["225/65 R17","235/55 R19"]]],
+    "Yukon": [[2015,2020,["265/65 R18","275/55 R20","285/45 R22"]],[2021,2026,["265/65 R18","275/60 R20","275/50 R22"]]],
+    "Canyon": [[2015,2022,["255/65 R17","265/65 R17","265/60 R18"]],[2023,2026,["265/65 R17","275/60 R20","255/55 R20"]]]
+  },
+  "Ram": {
+    "Ram 1500": [[2009,2018,["265/70 R17","275/60 R20","285/45 R22"]],[2019,2026,["275/65 R18","275/55 R20","285/45 R22"]]],
+    "Ram 2500": [[2010,2018,["245/70 R17","265/70 R17","275/70 R18","285/60 R20"]],[2019,2026,["275/70 R18","285/60 R20"]]]
+  },
+  "Toyota": {
+    "Corolla": [[2009,2019,["195/65 R15","205/55 R16","215/45 R17"]],[2020,2026,["195/65 R15","205/55 R16","215/45 R17","225/40 R18"]]],
+    "Camry": [[2007,2011,["205/65 R15","215/60 R16","215/55 R17"]],[2012,2017,["205/65 R16","215/55 R17","225/45 R18"]],[2018,2026,["205/65 R16","215/55 R17","235/45 R18","235/40 R19"]]],
+    "RAV4": [[2006,2012,["215/70 R16","225/65 R17","235/60 R18"]],[2013,2018,["225/65 R17","225/60 R18","235/55 R18"]],[2019,2025,["225/65 R17","225/60 R18","235/55 R19"]],[2026,2026,["235/65 R17","235/60 R18","235/50 R20"]]],
+    "Tacoma": [[2008,2015,["215/70 R15","245/75 R16","265/70 R16","265/65 R17","265/60 R18"]],[2016,2023,["245/75 R16","265/70 R16","265/65 R17","265/60 R18"]],[2024,2026,["245/70 R17","265/70 R17","265/65 R18","265/70 R18"]]],
+    "Highlander": [[2008,2013,["245/65 R17","245/60 R18","245/55 R19"]],[2014,2019,["245/60 R18","245/55 R19"]],[2020,2026,["235/65 R18","245/60 R18","235/55 R20"]]],
+    "Sienna": [[2011,2020,["235/60 R17","235/55 R18"]],[2021,2026,["235/60 R17","235/50 R20"]]],
+    "Corolla Cross": [[2022,2026,["215/65 R17","225/55 R18"]]],
+    "Prius": [[2016,2022,["195/65 R15","215/45 R17"]],[2023,2026,["195/60 R17","195/50 R19"]]],
+    "4Runner": [[2010,2024,["245/70 R17","265/70 R17","245/60 R20"]],[2025,2026,["245/70 R17","265/70 R18","265/55 R20"]]]
+  },
+  "Honda": {
+    "Civic": [[2012,2015,["195/65 R15","205/55 R16","215/45 R17"]],[2016,2026,["215/55 R16","215/50 R17","235/40 R18"]]],
+    "Accord": [[2008,2012,["215/60 R16","225/50 R17","235/45 R18"]],[2013,2017,["205/65 R16","215/55 R17","225/50 R17","235/45 R18","235/40 R19"]],[2018,2026,["225/50 R17","235/40 R19"]]],
+    "CR-V": [[2008,2011,["225/65 R17"]],[2012,2016,["215/70 R16","225/65 R17","225/60 R18"]],[2017,2026,["235/65 R17","235/60 R18","235/55 R19"]]],
+    "HR-V": [[2016,2022,["215/55 R17"]],[2023,2026,["215/60 R17","225/50 R18"]]],
+    "Pilot": [[2009,2015,["235/65 R17","235/60 R18"]],[2016,2022,["245/60 R18","245/50 R20"]],[2023,2026,["265/60 R18","275/55 R20"]]],
+    "Ridgeline": [[2017,2026,["245/60 R18"]]],
+    "Odyssey": [[2011,2017,["235/65 R17","235/60 R18"]],[2018,2026,["235/60 R18","235/55 R19"]]]
+  },
+  "Nissan": {
+    "Rogue": [[2008,2013,["215/70 R16","225/60 R17","225/55 R18"]],[2014,2020,["225/65 R17","225/60 R18","225/55 R19"]],[2021,2026,["235/65 R17","235/60 R18","235/55 R19"]]],
+    "Sentra": [[2007,2012,["205/60 R15","205/55 R16","225/45 R17"]],[2013,2019,["205/55 R16","205/50 R17"]],[2020,2026,["205/60 R16","215/50 R17","215/45 R18"]]],
+    "Altima": [[2007,2018,["215/60 R16","215/55 R17","235/45 R18"]],[2019,2025,["215/55 R17","235/40 R19"]]],
+    "Murano": [[2009,2024,["235/65 R18","235/55 R20"]]],
+    "Pathfinder": [[2013,2020,["235/65 R18","255/60 R19","255/50 R20"]],[2022,2026,["255/60 R18","255/50 R20"]]],
+    "Frontier": [[2005,2026,["265/70 R16","265/65 R17","265/60 R18"]]],
+    "Kicks": [[2018,2024,["205/60 R16","205/55 R17"]],[2025,2026,["215/60 R17","215/55 R17","225/45 R19"]]],
+    "Leaf": [[2011,2025,["205/55 R16","215/50 R17"]]],
+    "Versa": [[2012,2019,["185/65 R15","195/55 R16"]],[2020,2025,["195/65 R15","205/55 R16","205/50 R17"]]]
+  },
+  "Hyundai": {
+    "Elantra": [[2011,2016,["195/65 R15","205/55 R16","215/45 R17"]],[2017,2026,["195/65 R15","205/55 R16","225/45 R17","235/40 R18"]]],
+    "Sonata": [[2011,2014,["205/65 R16","215/55 R17","225/45 R18"]],[2015,2026,["205/65 R16","215/55 R17","235/45 R18"]]],
+    "Tucson": [[2010,2015,["225/60 R17","225/55 R18"]],[2016,2021,["225/60 R17","225/55 R18","245/45 R19"]],[2022,2024,["235/65 R17","235/55 R19"]],[2025,2026,["235/65 R17","235/60 R18","235/55 R19"]]],
+    "Santa Fe": [[2013,2023,["235/65 R17","235/60 R18","235/55 R19"]],[2024,2026,["235/60 R18","245/60 R18","255/45 R20","245/45 R21"]]],
+    "Kona": [[2018,2023,["205/60 R16","215/55 R17","235/45 R18"]],[2024,2026,["215/60 R17","215/55 R18","235/45 R19"]]],
+    "Palisade": [[2020,2026,["245/60 R18","245/50 R20"]]],
+    "Accent": [[2012,2017,["175/70 R14","195/50 R16"]],[2018,2022,["185/65 R15","195/50 R16"]]],
+    "Venue": [[2020,2026,["185/65 R15","205/55 R16","205/50 R17"]]]
+  },
+  "Kia": {
+    "Forte": [[2014,2018,["195/65 R15","205/55 R16","215/45 R17"]],[2019,2024,["195/65 R15","205/55 R16","225/45 R17"]]],
+    "K4": [[2025,2026,["205/55 R16","225/45 R17"]]],
+    "Sportage": [[2011,2016,["215/70 R16","235/60 R17","235/50 R18"]],[2017,2022,["225/60 R17","225/55 R18","245/45 R19"]],[2023,2026,["235/65 R17","235/55 R18","235/55 R19"]]],
+    "Sorento": [[2011,2015,["235/65 R17","235/60 R18"]],[2016,2020,["235/65 R17","235/60 R18","235/55 R19"]],[2021,2026,["235/65 R17","235/60 R18","255/45 R20"]]],
+    "Soul": [[2014,2026,["205/60 R16","215/55 R17","235/45 R18"]]],
+    "Seltos": [[2021,2026,["205/60 R16","215/55 R17","235/45 R18"]]],
+    "Telluride": [[2020,2026,["245/60 R18","245/50 R20"]]],
+    "Rio": [[2012,2017,["185/65 R15","195/55 R16"]],[2018,2023,["185/65 R15","195/50 R16"]]],
+    "Carnival": [[2022,2026,["235/65 R17","235/55 R19"]]],
+    "EV6": [[2022,2026,["235/55 R19","255/45 R20"]]]
+  },
+  "Mazda": {
+    "Mazda3": [[2010,2013,["195/65 R15","205/55 R16","205/50 R17"]],[2014,2018,["205/55 R16","215/45 R18"]],[2019,2026,["205/60 R16","215/45 R18"]]],
+    "CX-5": [[2013,2022,["225/65 R17","225/55 R19"]],[2023,2026,["225/65 R17","225/55 R19","245/45 R20"]]],
+    "CX-30": [[2020,2026,["215/65 R16","215/55 R18"]]],
+    "CX-50": [[2023,2026,["225/65 R17","225/55 R19","245/45 R20"]]],
+    "CX-9": [[2016,2023,["255/60 R18","255/50 R20"]]],
+    "CX-90": [[2024,2026,["265/55 R19","275/45 R21"]]]
+  },
+  "Subaru": {
+    "Forester": [[2009,2013,["215/60 R17","225/55 R17"]],[2014,2024,["225/60 R17","225/55 R18"]],[2025,2026,["225/60 R17","235/60 R17","225/55 R18","235/50 R19"]]],
+    "Outback": [[2010,2014,["215/70 R16","225/60 R17"]],[2015,2026,["225/65 R17","225/60 R18"]]],
+    "Crosstrek": [[2013,2017,["225/55 R17"]],[2018,2026,["225/60 R17","225/55 R18"]]],
+    "Impreza": [[2012,2016,["195/65 R15","205/55 R16","205/50 R17"]],[2017,2023,["205/55 R16","205/50 R17","225/40 R18"]],[2024,2026,["205/55 R16","225/40 R18"]]],
+    "Ascent": [[2019,2026,["245/60 R18","245/50 R20"]]],
+    "Legacy": [[2015,2024,["225/55 R17","225/50 R18"]]],
+    "WRX": [[2015,2021,["235/45 R17","245/40 R18"]],[2022,2026,["245/40 R18","245/35 R19"]]]
+  },
+  "Volkswagen": {
+    "Jetta": [[2011,2018,["195/65 R15","205/55 R16","225/45 R17"]],[2019,2026,["205/60 R16","205/55 R17","225/45 R18"]]],
+    "Golf": [[2015,2021,["195/65 R15","205/55 R16","225/45 R17","225/40 R18"]]],
+    "Tiguan": [[2009,2017,["215/65 R16","235/55 R17","235/50 R18"]],[2018,2026,["215/65 R17","235/55 R18","235/50 R19","255/45 R19","255/40 R20"]]],
+    "Atlas": [[2018,2026,["245/60 R18","255/50 R20","265/45 R21"]]],
+    "Taos": [[2022,2026,["215/55 R17","225/50 R18","225/45 R19"]]],
+    "Passat": [[2012,2022,["215/60 R16","215/55 R17","235/45 R18","235/40 R19"]]]
+  },
+  "Jeep": {
+    "Wrangler": [[2007,2017,["245/75 R17","255/75 R17","255/70 R18"]],[2018,2026,["245/75 R17","255/75 R17","255/70 R17","255/70 R18","285/70 R17","275/55 R20"]]],
+    "Grand Cherokee": [[2011,2021,["245/70 R17","265/60 R18","265/50 R20"]],[2022,2026,["245/70 R17","265/60 R18","265/50 R20","275/45 R21"]]],
+    "Cherokee": [[2014,2023,["225/65 R17","225/60 R18","245/65 R17"]]],
+    "Compass": [[2017,2026,["215/65 R16","225/60 R17","225/55 R18","235/45 R19"]]],
+    "Gladiator": [[2020,2026,["245/75 R17","255/75 R17","285/70 R17","275/55 R20"]]],
+    "Renegade": [[2015,2023,["215/65 R16","215/60 R17","225/55 R18"]]]
+  },
+  "Dodge": {
+    "Grand Caravan": [[2008,2020,["225/65 R16","225/65 R17"]]],
+    "Durango": [[2011,2026,["265/60 R18","265/50 R20"]]],
+    "Journey": [[2009,2020,["225/65 R16","225/60 R17","225/55 R19"]]],
+    "Charger": [[2011,2023,["235/55 R18","245/45 R20","275/40 R20"]]],
+    "Challenger": [[2015,2023,["235/55 R18","245/45 R20","275/40 R20"]]],
+    "Hornet": [[2023,2026,["215/60 R17","235/40 R20"]]]
+  },
+  "Mitsubishi": {
+    "Outlander": [[2007,2013,["215/70 R16","225/55 R18"]],[2014,2020,["225/55 R18"]],[2022,2026,["235/60 R18","255/45 R20"]]],
+    "RVR": [[2011,2026,["215/70 R16","225/55 R18"]]],
+    "Eclipse Cross": [[2018,2026,["215/70 R16","225/55 R18"]]],
+    "Mirage": [[2014,2026,["165/65 R14","175/55 R15"]]]
+  },
+  "Tesla": {
+    "Model 3": [[2017,2026,["235/45 R18","235/40 R19","235/35 R20"]]],
+    "Model Y": [[2020,2026,["255/45 R19","255/40 R20","255/35 R21"]]],
+    "Model S": [[2012,2020,["245/45 R19","245/35 R21"]],[2021,2026,["255/45 R19","265/35 R21"]]],
+    "Model X": [[2016,2026,["255/45 R20","265/35 R22"]]]
+  }
+};
+const VEH_ANNEE_MIN = 2000, VEH_ANNEE_MAX = 2026;
+const VEH_AUTRE_MARQUE = "__autre_marque__";
+const VEH_AUTRE_MODELE = "__autre_modele__";
+const cAnnee = document.getElementById("cAnnee");
+const cMarque = document.getElementById("cMarque");
+const cModele = document.getElementById("cModele");
+const cVehiculeLibre = document.getElementById("cVehiculeLibre");
+const cPneusChoix = document.getElementById("cPneusChoix");
+
+function vehFillSelect(sel, placeholder, values) {
+  sel.innerHTML = "";
+  const opt0 = document.createElement("option");
+  opt0.value = "";
+  opt0.textContent = placeholder;
+  sel.appendChild(opt0);
+  values.forEach(function (v) {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = v;
+    sel.appendChild(o);
+  });
+}
+/* Grandeurs d'origine du modèle pour l'année, ou null si inconnues. */
+function vehSizes(marque, modele, annee) {
+  const plages = (VEHICULES[marque] || {})[modele];
+  if (!plages) return null;
+  const y = parseInt(annee, 10);
+  if (!y) return null;
+  for (let i = 0; i < plages.length; i++) {
+    if (y >= plages[i][0] && y <= plages[i][1]) return plages[i][2];
+  }
+  return null;
+}
+/* Affiche les grandeurs connues en petites options cliquables ;
+   une seule grandeur = pré-remplissage direct du champ. */
+function vehShowSizes() {
+  cPneusChoix.innerHTML = "";
+  const sizes = vehSizes(cMarque.value, cModele.value, cAnnee.value);
+  if (!sizes || !sizes.length) return;
+  if (sizes.length === 1) { cPneus.value = sizes[0]; return; }
+  const lbl = document.createElement("span");
+  lbl.className = "chipLbl";
+  lbl.textContent = "Grandeurs d'origine :";
+  cPneusChoix.appendChild(lbl);
+  sizes.forEach(function (s) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip" + (cPneus.value === s ? " sel" : "");
+    b.textContent = s;
+    b.addEventListener("click", function () {
+      cPneus.value = s;
+      vehShowSizes();
+    });
+    cPneusChoix.appendChild(b);
+  });
+}
+function vehOnAnnee() {
+  cPneusChoix.innerHTML = "";
+  cVehiculeLibre.hidden = true;
+  cVehiculeLibre.value = "";
+  if (!cAnnee.value) {
+    vehFillSelect(cMarque, "— Choisir la marque —", []);
+    cMarque.disabled = true;
+    vehFillSelect(cModele, "— Choisir le modèle —", []);
+    cModele.disabled = true;
+    return;
+  }
+  const y = parseInt(cAnnee.value, 10);
+  const marques = Object.keys(VEHICULES).filter(function (m) {
+    return Object.keys(VEHICULES[m]).some(function (mod) {
+      return VEHICULES[m][mod].some(function (p) { return y >= p[0] && y <= p[1]; });
+    });
+  });
+  marques.push(VEH_AUTRE_MARQUE);
+  vehFillSelect(cMarque, "— Choisir la marque —", marques);
+  // Libellé lisible pour le choix de repli
+  cMarque.querySelector("option[value='" + VEH_AUTRE_MARQUE + "']").textContent = "Autre marque";
+  cMarque.disabled = false;
+  vehFillSelect(cModele, "— Choisir le modèle —", []);
+  cModele.disabled = true;
+}
+function vehOnMarque() {
+  cPneusChoix.innerHTML = "";
+  vehFillSelect(cModele, "— Choisir le modèle —", []);
+  if (!cMarque.value) {
+    cModele.disabled = true;
+    cVehiculeLibre.hidden = true;
+    cVehiculeLibre.value = "";
+    return;
+  }
+  if (cMarque.value === VEH_AUTRE_MARQUE) {
+    cModele.disabled = true;
+    cVehiculeLibre.hidden = false;
+    return;
+  }
+  cVehiculeLibre.hidden = true;
+  cVehiculeLibre.value = "";
+  const y = parseInt(cAnnee.value, 10);
+  const modeles = Object.keys(VEHICULES[cMarque.value] || {}).filter(function (mod) {
+    return VEHICULES[cMarque.value][mod].some(function (p) { return y >= p[0] && y <= p[1]; });
+  });
+  modeles.push(VEH_AUTRE_MODELE);
+  vehFillSelect(cModele, "— Choisir le modèle —", modeles);
+  cModele.querySelector("option[value='" + VEH_AUTRE_MODELE + "']").textContent = "Autre modèle";
+  cModele.disabled = false;
+}
+function vehOnModele() {
+  if (cModele.value === VEH_AUTRE_MODELE) {
+    cPneusChoix.innerHTML = "";
+    cVehiculeLibre.hidden = false;
+  } else {
+    cVehiculeLibre.hidden = true;
+    cVehiculeLibre.value = "";
+    vehShowSizes();
+  }
+}
+/* Véhicule à enregistrer : { annee, marque, modele } ou null si rien
+   n'a été choisi. Le texte libre « Autre » est rangé tel quel. */
+function vehCollect() {
+  const annee = cAnnee.value || "";
+  let marque = "", modele = "";
+  if (cMarque.value === VEH_AUTRE_MARQUE) {
+    const libre = cVehiculeLibre.value.trim();
+    if (!annee && !libre) return null;
+    marque = libre;
+  } else if (cMarque.value) {
+    marque = cMarque.value;
+    if (cModele.value === VEH_AUTRE_MODELE) modele = cVehiculeLibre.value.trim();
+    else modele = cModele.value || "";
+  }
+  if (!annee && !marque && !modele) return null;
+  return { annee: annee, marque: marque, modele: modele };
+}
+function vehReset() {
+  vehFillSelect(cAnnee, "— Choisir l'année (facultatif) —",
+    Array.from({ length: VEH_ANNEE_MAX - VEH_ANNEE_MIN + 1 },
+               function (_, i) { return String(VEH_ANNEE_MAX - i); }));
+  vehFillSelect(cMarque, "— Choisir la marque —", []);
+  cMarque.disabled = true;
+  vehFillSelect(cModele, "— Choisir le modèle —", []);
+  cModele.disabled = true;
+  cVehiculeLibre.hidden = true;
+  cVehiculeLibre.value = "";
+  cPneusChoix.innerHTML = "";
+}
+cAnnee.addEventListener("change", vehOnAnnee);
+cMarque.addEventListener("change", vehOnMarque);
+cModele.addEventListener("change", vehOnModele);
+cPneus.addEventListener("input", function () {
+  // La sélection visuelle des options suit le texte du champ
+  Array.prototype.forEach.call(cPneusChoix.querySelectorAll(".chip"), function (ch) {
+    ch.classList.toggle("sel", ch.textContent === cPneus.value);
+  });
+});
 
 /* « mardi 25 nov. à 9 h 30 » */
 function dateLongue(dateIsoStr, key) {
@@ -1128,6 +1546,7 @@ function openClientForm(date, key) {
   cTel.value = "";
   cPlaque.value = "";
   cPneus.value = "";
+  vehReset();
   cError.textContent = "";
   btnClientConfirm.disabled = false;
   clientOverlay.hidden = false;
@@ -1156,6 +1575,8 @@ btnClientConfirm.addEventListener("click", function () {
     return;
   }
   const data = { nom: nom, tel: cTel.value.trim(), plaque: cPlaque.value.trim(), pneus: cPneus.value.trim() };
+  const veh = vehCollect();
+  if (veh) data.vehicule = veh;
   const target = { date: clientEditing.date, key: clientEditing.key };
   btnClientConfirm.disabled = true;
   cError.textContent = "";
