@@ -470,6 +470,8 @@
     <input id="cTel" type="tel" autocomplete="off" placeholder="Téléphone (facultatif)">
     <label for="cPlaque"># plaque :</label>
     <input id="cPlaque" type="text" autocomplete="off" placeholder="Plaque (facultatif)">
+    <label for="cPneus">Grandeur des pneus :</label>
+    <input id="cPneus" type="text" autocomplete="off" placeholder="Ex. 205/55 R16 (facultatif)">
     <div class="err" id="cError" role="alert"></div>
     <div class="row">
       <button id="btnClientCancel" type="button">Annuler</button>
@@ -498,6 +500,8 @@
     <input id="dlgTel" type="tel" autocomplete="off" placeholder="Téléphone (facultatif)">
     <label for="dlgPlaque"># plaque :</label>
     <input id="dlgPlaque" type="text" autocomplete="off" placeholder="Plaque (facultatif)">
+    <label for="dlgPneus">Grandeur des pneus :</label>
+    <input id="dlgPneus" type="text" autocomplete="off" placeholder="Ex. 205/55 R16 (facultatif)">
     <div id="dlgError" role="alert"></div>
     <div class="row">
       <button id="btnDelete" hidden>Supprimer</button>
@@ -561,7 +565,7 @@ let currentUser = null;            // "g1" | "g2" | null (écran d'accès)
 let clientOpen = false;            // vue client (disponibilités) affichée
 let clientEditing = null;          // { date, key } réservation client en cours
 let weekOffset = 0;                // 0 = semaine courante
-let bookings = { g1: {}, g2: {} }; // bookings[garage][dateISO][cleHeure] = { nom, tel, plaque }
+let bookings = { g1: {}, g2: {} }; // bookings[garage][dateISO][cleHeure] = { nom, tel, plaque, pneus }
 let editing = null;                // { date, key } en cours d'édition
 
 /* ---------------- Dates ---------------- */
@@ -596,15 +600,17 @@ function esc(s) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
-/* Normalise une entrée stockée vers { nom, tel, plaque }.
-   Compatibilité : les anciennes entrées { text } sont lues comme un nom. */
+/* Normalise une entrée stockée vers { nom, tel, plaque, pneus }.
+   Compatibilité : les anciennes entrées { text } sont lues comme un nom,
+   et les entrées sans « pneus » (avant l'ajout du champ) donnent "". */
 function normEntry(entry) {
   if (!entry) return null;
   const nom = entry.nom || entry.text || "";
   const tel = entry.tel || "";
   const plaque = entry.plaque || "";
-  if (!nom && !tel && !plaque) return null;
-  return { nom: nom, tel: tel, plaque: plaque };
+  const pneus = entry.pneus || "";
+  if (!nom && !tel && !plaque && !pneus) return null;
+  return { nom: nom, tel: tel, plaque: plaque, pneus: pneus };
 }
 </script>
 
@@ -613,7 +619,7 @@ function normEntry(entry) {
    COUCHE DONNÉES — deux modes :
    1) FIREBASE (si configuré) : synchronisation temps réel entre les
       deux ordinateurs, structure : rdv/g1/<date>/<heure> =
-      { nom, tel, plaque } (g1 = cases vertes / Garage 1,
+      { nom, tel, plaque, pneus } (g1 = cases vertes / Garage 1,
       g2 = cases bleues / Garage 2) ; archives mensuelles sous
       rdv_archive/<AAAA-MM>/<garage>/<date>/<heure>.
    2) DÉMO (sinon) : localStorage de ce navigateur + événement
@@ -625,7 +631,7 @@ const demoMode = !firebaseConfig.databaseURL;
 let useLocal = demoMode;  // passe aussi à true en repli si Firebase est injoignable
 let dbRef = null;
 let archRef = null;
-let archives = {};        // archives["AAAA-MM"][garage][date][heure] = { nom, tel, plaque }
+let archives = {};        // archives["AAAA-MM"][garage][date][heure] = { nom, tel, plaque, pneus }
 let archivingDone = false;
 
 function loadDemo() {
@@ -648,7 +654,7 @@ function saveDemoArchives() {
 }
 
 function setBooking(garage, date, key, data) {
-  // data = { nom, tel, plaque } pour enregistrer, null pour supprimer.
+  // data = { nom, tel, plaque, pneus } pour enregistrer, null pour supprimer.
   // Garde-fou : on n'écrit JAMAIS dans la couleur de l'autre garage
   if (garage !== currentUser) return;
   if (useLocal) {
@@ -662,7 +668,7 @@ function setBooking(garage, date, key, data) {
     renderActive();
   } else {
     const ref = dbRef.child(garage + "/" + date + "/" + key);
-    if (data) ref.set({ nom: data.nom, tel: data.tel || "", plaque: data.plaque || "", maj: Date.now() });
+    if (data) ref.set({ nom: data.nom, tel: data.tel || "", plaque: data.plaque || "", pneus: data.pneus || "", maj: Date.now() });
     else ref.remove();
     // le rendu se fait par l'écouteur temps réel (on value)
   }
@@ -684,7 +690,7 @@ function clientBookLocal(date, key, data) {
     const g = order[i];
     if (!normEntry(((bookings[g] || {})[date] || {})[key])) {
       if (!bookings[g][date]) bookings[g][date] = {};
-      bookings[g][date][key] = { nom: data.nom, tel: data.tel || "", plaque: data.plaque || "" };
+      bookings[g][date][key] = { nom: data.nom, tel: data.tel || "", plaque: data.plaque || "", pneus: data.pneus || "" };
       saveDemo();
       renderActive();
       return g;
@@ -696,7 +702,7 @@ function clientTryFirebase(garage, date, key, data) {
   const ref = dbRef.child(garage + "/" + date + "/" + key);
   return ref.transaction(function (cur) {
     if (normEntry(cur)) return undefined; // déjà pris : on avorte
-    return { nom: data.nom, tel: data.tel || "", plaque: data.plaque || "", maj: Date.now() };
+    return { nom: data.nom, tel: data.tel || "", plaque: data.plaque || "", pneus: data.pneus || "", maj: Date.now() };
   }).then(function (res) { return !!(res && res.committed); });
 }
 function clientBook(date, key, data) {
@@ -812,14 +818,20 @@ function cellHtml(garage, date, key) {
   let cls = "cell " + garage + (mine ? " mine" : " theirs") + (entry ? " booked" : "");
   let inner = "";
   if (entry) {
-    // Le nom en évidence ; le # de plaque en petit en dessous, si présent
+    // Le nom en évidence ; en petit en dessous, sur la même ligne :
+    // le # de plaque et la grandeur des pneus, quand ils sont présents
+    // (la case garde sa hauteur — les deux détails tiennent sur une ligne).
     inner = "<span class='nm'>" + esc(entry.nom) + "</span>";
-    if (entry.plaque) inner += "<span class='pl'>#" + esc(entry.plaque) + "</span>";
+    const det = [];
+    if (entry.plaque) det.push("#" + esc(entry.plaque));
+    if (entry.pneus) det.push(esc(entry.pneus));
+    if (det.length) inner += "<span class='pl'>" + det.join(" · ") + "</span>";
   }
   let titleTxt = "";
   if (entry) {
     titleTxt = entry.nom;
     if (entry.plaque) titleTxt += " — #" + entry.plaque;
+    if (entry.pneus) titleTxt += " — Pneus : " + entry.pneus;
     if (entry.tel) titleTxt += " — " + entry.tel;
   }
   const title = titleTxt ? " title='" + esc(titleTxt) + "'" : "";
@@ -910,11 +922,13 @@ function renderClient() {
 }
 
 /* ---------------- Fenêtre d'édition (sa couleur seulement) ----------------
-   Le formulaire contient EXACTEMENT trois champs : Nom, Tél, # plaque. */
+   Le formulaire contient EXACTEMENT quatre champs :
+   Nom, Tél, # plaque, Grandeur des pneus. */
 const overlay = document.getElementById("overlay");
 const dlgNom = document.getElementById("dlgNom");
 const dlgTel = document.getElementById("dlgTel");
 const dlgPlaque = document.getElementById("dlgPlaque");
+const dlgPneus = document.getElementById("dlgPneus");
 const dlgError = document.getElementById("dlgError");
 const btnDelete = document.getElementById("btnDelete");
 
@@ -930,6 +944,7 @@ function openEditor(date, key) {
   dlgNom.value = entry ? entry.nom : "";
   dlgTel.value = entry ? entry.tel : "";
   dlgPlaque.value = entry ? entry.plaque : "";
+  dlgPneus.value = entry ? entry.pneus : "";
   dlgError.textContent = "";
   btnDelete.hidden = !entry;
   overlay.hidden = false;
@@ -954,7 +969,8 @@ document.getElementById("btnSave").addEventListener("click", function () {
   setBooking(currentUser, editing.date, editing.key, {
     nom: nom,
     tel: dlgTel.value.trim(),
-    plaque: dlgPlaque.value.trim()
+    plaque: dlgPlaque.value.trim(),
+    pneus: dlgPneus.value.trim()
   });
   closeEditor();
 });
@@ -975,8 +991,9 @@ document.addEventListener("keydown", function (e) {
 
 /* ---------------- Archives (lecture seule) ----------------
    Les rendez-vous archivés, classés par mois (« dossier » AAAA-MM).
-   Nom, tél, # plaque, date, heure et couleur du garage sont montrés ;
-   AUCUNE modification n'est possible dans cette vue. */
+   Nom, tél, # plaque, grandeur des pneus, date, heure et couleur
+   du garage sont montrés ; AUCUNE modification n'est possible
+   dans cette vue. */
 const archOverlay = document.getElementById("archOverlay");
 const archList = document.getElementById("archList");
 
@@ -1009,6 +1026,7 @@ function renderArchives() {
       let det = "";
       if (r.e.tel) det = "Tél : " + esc(r.e.tel);
       if (r.e.plaque) det += (det ? " · " : "") + "#" + esc(r.e.plaque);
+      if (r.e.pneus) det += (det ? " · " : "") + "Pneus : " + esc(r.e.pneus);
       html += "<div class='archRow'><span class='sw " + r.g + "'></span>" +
               "<span class='archWhen'>" + when + "</span>" +
               "<span class='archNom'>" + esc(r.e.nom) + "</span>" +
@@ -1081,15 +1099,17 @@ document.getElementById("btnClientBack").addEventListener("click", exitClient);
 
 /* ---------------- Réservation client : formulaire ----------------
    Le client clique une case verte → formulaire avec EXACTEMENT
-   trois champs (Nom, Tél, # plaque — même présentation que celui
-   des garages ; nom obligatoire) → « Confirmer » : la disponibilité
-   est revérifiée à cet instant (voir clientBook) et le rendez-vous
-   est inscrit au Garage 1 si l'heure y est libre, sinon au
-   Garage 2. Un message confirme en nommant le garage obtenu. */
+   quatre champs (Nom, Tél, # plaque, Grandeur des pneus — même
+   présentation que celui des garages ; nom obligatoire) →
+   « Confirmer » : la disponibilité est revérifiée à cet instant
+   (voir clientBook) et le rendez-vous est inscrit au Garage 1
+   si l'heure y est libre, sinon au Garage 2. Un message confirme
+   en nommant le garage obtenu. */
 const clientOverlay = document.getElementById("clientOverlay");
 const cNom = document.getElementById("cNom");
 const cTel = document.getElementById("cTel");
 const cPlaque = document.getElementById("cPlaque");
+const cPneus = document.getElementById("cPneus");
 const cError = document.getElementById("cError");
 const btnClientConfirm = document.getElementById("btnClientConfirm");
 const msgOverlay = document.getElementById("msgOverlay");
@@ -1107,6 +1127,7 @@ function openClientForm(date, key) {
   cNom.value = "";
   cTel.value = "";
   cPlaque.value = "";
+  cPneus.value = "";
   cError.textContent = "";
   btnClientConfirm.disabled = false;
   clientOverlay.hidden = false;
@@ -1134,7 +1155,7 @@ btnClientConfirm.addEventListener("click", function () {
     cNom.focus();
     return;
   }
-  const data = { nom: nom, tel: cTel.value.trim(), plaque: cPlaque.value.trim() };
+  const data = { nom: nom, tel: cTel.value.trim(), plaque: cPlaque.value.trim(), pneus: cPneus.value.trim() };
   const target = { date: clientEditing.date, key: clientEditing.key };
   btnClientConfirm.disabled = true;
   cError.textContent = "";
