@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PNEUS RDV — Agenda</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+    background: #f2f3f5;
+    color: #1c2733;
+    display: flex;
+    flex-direction: column;
+  }
+  [hidden] { display: none !important; }
+
+  /* ---------- Écran d'accès ---------- */
+  #loginScreen {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #loginBox {
+    background: #ffffff;
+    border: 1px solid #c3ccd4;
+    border-radius: 12px;
+    padding: 34px 30px;
+    width: min(420px, 92vw);
+    text-align: center;
+    box-shadow: 0 8px 30px rgba(0,0,0,.12);
+  }
+  #loginBox h1 { font-size: 24px; margin-bottom: 6px; }
+  #loginBox p { font-size: 15px; color: #43536a; margin-bottom: 18px; }
+  #loginCode {
+    width: 100%;
+    font-size: 26px;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: .12em;
+    padding: 12px;
+    border: 2px solid #9aa7b1;
+    border-radius: 8px;
+  }
+  #loginCode:focus { border-color: #33506e; outline: none; }
+  #loginError {
+    min-height: 22px;
+    margin-top: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #c62828;
+  }
+  #btnLogin {
+    width: 100%;
+    margin-top: 12px;
+    font-size: 18px;
+    font-weight: 700;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: #33506e;
+    color: #ffffff;
+    cursor: pointer;
+  }
+  #btnLogin:hover { background: #28405a; }
+
+  /* ---------- Barre du haut ---------- */
+  header {
+    background: #ffffff;
+    border-bottom: 2px solid #d7dce1;
+    padding: 10px 14px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 22px;
+  }
+  #sessionBadge {
+    font-size: 20px;
+    font-weight: 700;
+    padding: 9px 18px;
+    border-radius: 8px;
+    color: #ffffff;
+  }
+  #sessionBadge.g1 { background: #2e7d32; }
+  #sessionBadge.g2 { background: #1565c0; }
+  .nav { display: flex; align-items: center; gap: 8px; }
+  .nav button, #btnLogout {
+    font-size: 15px;
+    padding: 8px 14px;
+    border: 1px solid #9aa7b1;
+    border-radius: 6px;
+    background: #eef1f4;
+    color: #1c2733;
+    cursor: pointer;
+  }
+  .nav button:hover, #btnLogout:hover { background: #dde4ea; }
+  #btnLogout { margin-left: auto; }
+  #weekLabel { font-size: 17px; font-weight: 700; margin-left: 6px; }
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 14px;
+    color: #43536a;
+  }
+  .sw {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,.25);
+    vertical-align: -3px;
+  }
+  .sw.g1 { background: #43a047; }
+  .sw.g2 { background: #1e88e5; }
+  #syncStatus { margin-left: 14px; font-size: 13px; font-style: italic; color: #6a7889; }
+
+  /* ---------- Grille ---------- */
+  main { flex: 1; overflow: auto; padding: 10px 14px 16px; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 1080px;
+    background: #ffffff;
+  }
+  th, td { border: 1px solid #c3ccd4; }
+  thead th {
+    background: #33506e;
+    color: #ffffff;
+    font-size: 16px;
+    padding: 9px 4px;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  thead th.today { background: #b8860b; }
+  thead th .dow { display: block; font-size: 13px; font-weight: 400; text-transform: uppercase; letter-spacing: .06em; }
+  td.time {
+    background: #eef1f4;
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+    width: 74px;
+    padding: 0 4px;
+    white-space: nowrap;
+  }
+  td.slot { padding: 3px; vertical-align: middle; }
+  td.slot.today-col { box-shadow: inset 0 0 0 2px #b8860b; }
+  .cells { display: flex; gap: 3px; }
+  .cell {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 42px;
+    border-radius: 5px;
+    padding: 3px 5px;
+    font-size: 13px;
+    line-height: 1.25;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,.18);
+  }
+  .cell .txt {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-word;
+  }
+  /* Couleurs : vert = Garage 1, bleu = Garage 2 */
+  .cell.g1 { background: #cdeccd; }
+  .cell.g1.booked { background: #43a047; color: #ffffff; font-weight: 600; }
+  .cell.g2 { background: #d3e5fa; }
+  .cell.g2.booked { background: #1e88e5; color: #ffffff; font-weight: 600; }
+  /* Ma couleur : cliquable */
+  .cell.mine { cursor: pointer; }
+  .cell.g1.mine:hover { background: #aee2ae; }
+  .cell.g1.mine.booked:hover { background: #388e3c; }
+  .cell.g2.mine:hover { background: #a9ccf5; }
+  .cell.g2.mine.booked:hover { background: #1565c0; }
+  /* L'autre couleur : lecture seule, atténuée */
+  .cell.theirs { opacity: .45; cursor: default; }
+
+  /* ---------- Fenêtre rendez-vous ---------- */
+  #overlay {
+    position: fixed; inset: 0;
+    background: rgba(20, 30, 40, .45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 10;
+  }
+  #overlay[hidden] { display: none; }
+  #dialog {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 22px;
+    width: min(480px, 92vw);
+    box-shadow: 0 12px 40px rgba(0,0,0,.35);
+  }
+  #dialog h2 { font-size: 19px; margin-bottom: 4px; }
+  #dialog .when { font-size: 15px; color: #43536a; margin-bottom: 14px; }
+  #dialog textarea {
+    width: 100%;
+    min-height: 84px;
+    font: inherit;
+    font-size: 16px;
+    padding: 9px;
+    border: 1px solid #9aa7b1;
+    border-radius: 6px;
+    resize: vertical;
+  }
+  #dialog .row { display: flex; gap: 8px; margin-top: 16px; }
+  #dialog button {
+    font-size: 15px;
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: 1px solid #9aa7b1;
+    background: #eef1f4;
+    cursor: pointer;
+  }
+  #btnSave { background: #2e7d32; border-color: #2e7d32; color: #fff; font-weight: 700; margin-left: auto; }
+  #btnDelete { background: #fbe9e7; border-color: #c62828; color: #c62828; }
+</style>
+</head>
+<body>
+
+<!-- ============ ÉCRAN D'ACCÈS ============ -->
+<div id="loginScreen">
+  <div id="loginBox">
+    <h1>Agenda</h1>
+    <p>Entrez votre nom d'utilisateur</p>
+    <form id="loginForm">
+      <input id="loginCode" type="text" inputmode="numeric" autocomplete="off"
+             placeholder="Nom d'utilisateur" aria-label="Nom d'utilisateur">
+      <div id="loginError" role="alert"></div>
+      <button id="btnLogin" type="submit">Entrer</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ AGENDA ============ -->
+<div id="app" hidden>
+  <header>
+    <span id="sessionBadge"></span>
+    <div class="nav">
+      <button id="prevWeek" title="Semaine précédente">‹ Préc.</button>
+      <button id="todayBtn">Aujourd'hui</button>
+      <button id="nextWeek" title="Semaine suivante">Suiv. ›</button>
+      <span id="weekLabel"></span>
+    </div>
+    <div class="legend">
+      <span class="sw g1"></span> Garage 1
+      <span class="sw g2"></span> Garage 2
+      <span id="syncStatus"></span>
+    </div>
+    <button id="btnLogout">Quitter</button>
+  </header>
+
+  <main>
+    <table id="grid"></table>
+  </main>
+</div>
+
+<div id="overlay" hidden>
+  <div id="dialog" role="dialog" aria-modal="true">
+    <h2 id="dlgTitle">Rendez-vous</h2>
+    <div class="when" id="dlgWhen"></div>
+    <textarea id="dlgText" placeholder="Ex. : pose pneus hiver — 4 roues"></textarea>
+    <div class="row">
+      <button id="btnDelete" hidden>Supprimer</button>
+      <button id="btnCancel">Annuler</button>
+      <button id="btnSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- SDK Firebase (synchronisation entre les ordinateurs) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+"use strict";
+/* =====================================================================
+   CONFIGURATION FIREBASE — À REMPLIR POUR LA MISE EN LIGNE
+   ---------------------------------------------------------------------
+   Créer un projet gratuit sur https://console.firebase.google.com
+   (Realtime Database), puis coller ici les valeurs du projet.
+   TANT QUE « databaseURL » EST VIDE : la page fonctionne en MODE DÉMO
+   (données gardées dans le navigateur, sur cet ordinateur seulement).
+   ===================================================================== */
+const firebaseConfig = {
+  apiKey: "",
+  authDomain: "",
+  databaseURL: "",          // <-- ex. : "https://pneus-rdv-xxxx-default-rtdb.firebaseio.com"
+  projectId: "",
+  appId: ""
+};
+
+/* ---------------- Constantes ---------------- */
+/* Accès : le nom d'utilisateur EST le numéro du garage.
+   1775 = Garage 1 (cases vertes) — 2850 = Garage 2 (cases bleues). */
+const USERS = { "1775": "g1", "2850": "g2" };
+const GARAGE_LABEL = { g1: "Garage 1", g2: "Garage 2" };
+const START_HOUR = 8;              // premier créneau : 8 h 00
+const END_HOUR = 17;               // fin de journée : 17 h 00
+const SLOT_MIN = 30;               // créneaux de 30 minutes
+const JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+const MOIS = ["janv.", "févr.", "mars", "avr.", "mai", "juin",
+              "juill.", "août", "sept.", "oct.", "nov.", "déc."];
+
+/* ---------------- État ---------------- */
+let currentUser = null;            // "g1" | "g2" | null (écran d'accès)
+let weekOffset = 0;                // 0 = semaine courante
+let bookings = { g1: {}, g2: {} }; // bookings[garage][dateISO][cleHeure] = { text }
+let editing = null;                // { date, key } en cours d'édition
+
+/* ---------------- Dates ---------------- */
+function pad(n) { return String(n).padStart(2, "0"); }
+function isoDate(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+function mondayOf(base) {
+  const d = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // lundi = début de semaine
+  return d;
+}
+function weekDays() {
+  const mon = mondayOf(new Date());
+  mon.setDate(mon.getDate() + weekOffset * 7);
+  const days = [];
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(mon); d.setDate(mon.getDate() + i);
+    days.push(d);
+  }
+  return days;
+}
+function slotKeys() {
+  const keys = [];
+  for (let m = START_HOUR * 60; m < END_HOUR * 60; m += SLOT_MIN) keys.push(pad(Math.floor(m / 60)) + pad(m % 60));
+  return keys;
+}
+function keyLabel(key) { return key.slice(0, 2) + " h " + key.slice(2); }
+function esc(s) { return String(s).replace(/</g, "&lt;").replace(/"/g, "&quot;"); }
+</script>
+
+<script>
+/* =====================================================================
+   COUCHE DONNÉES — deux modes :
+   1) FIREBASE (si configuré) : synchronisation temps réel entre les
+      deux ordinateurs, structure : rdv/g1/<date>/<heure> = { text }
+      (g1 = cases vertes / Garage 1, g2 = cases bleues / Garage 2)
+   2) DÉMO (sinon) : localStorage de ce navigateur + événement
+      « storage » pour synchroniser les onglets/fenêtres du même poste.
+   ===================================================================== */
+const DEMO_KEY = "pneus-rdv-demo-v1";
+const demoMode = !firebaseConfig.databaseURL;
+let dbRef = null;
+
+function loadDemo() {
+  try {
+    const raw = localStorage.getItem(DEMO_KEY);
+    if (raw) bookings = Object.assign({ g1: {}, g2: {} }, JSON.parse(raw));
+  } catch (e) { /* données illisibles : on repart à vide */ }
+}
+function saveDemo() {
+  try { localStorage.setItem(DEMO_KEY, JSON.stringify(bookings)); } catch (e) {}
+}
+
+function setBooking(garage, date, key, text) {
+  // Garde-fou : on n'écrit JAMAIS dans la couleur de l'autre garage
+  if (garage !== currentUser) return;
+  if (demoMode) {
+    if (!bookings[garage][date]) bookings[garage][date] = {};
+    if (text) bookings[garage][date][key] = { text: text };
+    else {
+      delete bookings[garage][date][key];
+      if (!Object.keys(bookings[garage][date]).length) delete bookings[garage][date];
+    }
+    saveDemo();
+    render();
+  } else {
+    const ref = dbRef.child(garage + "/" + date + "/" + key);
+    if (text) ref.set({ text: text, maj: Date.now() });
+    else ref.remove();
+    // le rendu se fait par l'écouteur temps réel (on value)
+  }
+}
+
+function initData() {
+  const status = document.getElementById("syncStatus");
+  if (demoMode || typeof firebase === "undefined") {
+    loadDemo();
+    status.textContent = "Mode démo — données sur cet ordinateur seulement";
+    window.addEventListener("storage", function (e) {
+      if (e.key === DEMO_KEY) { loadDemo(); render(); }
+    });
+    render();
+    return;
+  }
+  try {
+    firebase.initializeApp(firebaseConfig);
+    dbRef = firebase.database().ref("rdv");
+    status.textContent = "Synchronisé";
+    dbRef.on("value", function (snap) {
+      bookings = Object.assign({ g1: {}, g2: {} }, snap.val() || {});
+      render();
+    }, function () {
+      status.textContent = "Synchronisation interrompue — vérifiez la connexion";
+    });
+  } catch (e) {
+    // Configuration invalide : repli en mode démo pour ne jamais bloquer le garage
+    loadDemo();
+    status.textContent = "Mode démo — données sur cet ordinateur seulement";
+    render();
+  }
+}
+
+/* ---------------- Affichage de la grille ----------------
+   UN SEUL agenda. Chaque créneau contient DEUX cases côte à côte :
+   à gauche la case VERTE (Garage 1), à droite la case BLEUE (Garage 2).
+   Seule la couleur de l'utilisateur connecté est cliquable ;
+   l'autre s'affiche en lecture seule, atténuée. */
+function cellHtml(garage, date, key) {
+  const entry = ((bookings[garage] || {})[date] || {})[key];
+  const mine = garage === currentUser;
+  let cls = "cell " + garage + (mine ? " mine" : " theirs") + (entry && entry.text ? " booked" : "");
+  let inner = "";
+  if (entry && entry.text) inner = "<span class='txt'>" + esc(entry.text) + "</span>";
+  const title = entry && entry.text ? " title='" + esc(entry.text) + "'" : "";
+  const data = mine ? " data-date='" + date + "' data-key='" + key + "'" : "";
+  return "<div class='" + cls + "'" + data + title + ">" + inner + "</div>";
+}
+
+function render() {
+  if (!currentUser) return;
+  const days = weekDays();
+  const todayIso = isoDate(new Date());
+  const first = days[0], last = days[5];
+  document.getElementById("weekLabel").textContent =
+    "Semaine du " + first.getDate() + " " + MOIS[first.getMonth()] +
+    " au " + last.getDate() + " " + MOIS[last.getMonth()] + " " + last.getFullYear();
+
+  const grid = document.getElementById("grid");
+  let html = "<thead><tr><th>Heure</th>";
+  days.forEach(function (d, i) {
+    const isToday = isoDate(d) === todayIso;
+    html += "<th class='" + (isToday ? "today" : "") + "'><span class='dow'>" + JOURS[i] +
+            "</span>" + d.getDate() + " " + MOIS[d.getMonth()] + "</th>";
+  });
+  html += "</tr></thead><tbody>";
+
+  slotKeys().forEach(function (key) {
+    html += "<tr><td class='time'>" + keyLabel(key) + "</td>";
+    days.forEach(function (d) {
+      const date = isoDate(d);
+      const isToday = date === todayIso;
+      html += "<td class='slot" + (isToday ? " today-col" : "") + "'><div class='cells'>" +
+              cellHtml("g1", date, key) +
+              cellHtml("g2", date, key) +
+              "</div></td>";
+    });
+    html += "</tr>";
+  });
+  html += "</tbody>";
+  grid.innerHTML = html;
+}
+
+/* ---------------- Fenêtre d'édition (sa couleur seulement) ---------------- */
+const overlay = document.getElementById("overlay");
+const dlgText = document.getElementById("dlgText");
+const btnDelete = document.getElementById("btnDelete");
+
+function openEditor(date, key) {
+  if (!currentUser) return;
+  editing = { date: date, key: key };
+  const entry = ((bookings[currentUser] || {})[date] || {})[key];
+  const d = new Date(date + "T12:00:00");
+  document.getElementById("dlgTitle").textContent = entry ? "Modifier le rendez-vous" : "Nouveau rendez-vous";
+  document.getElementById("dlgWhen").textContent =
+    GARAGE_LABEL[currentUser] + " — " + JOURS[(d.getDay() + 6) % 7] + " " + d.getDate() + " " +
+    MOIS[d.getMonth()] + " " + d.getFullYear() + ", " + keyLabel(key);
+  dlgText.value = entry ? entry.text : "";
+  btnDelete.hidden = !entry;
+  overlay.hidden = false;
+  dlgText.focus();
+}
+function closeEditor() { overlay.hidden = true; editing = null; }
+
+document.getElementById("grid").addEventListener("click", function (e) {
+  const cell = e.target.closest(".cell.mine");
+  if (cell) openEditor(cell.dataset.date, cell.dataset.key);
+  // les cases « theirs » n'ont ni écouteur ni data-* : clic sans effet
+});
+document.getElementById("btnSave").addEventListener("click", function () {
+  if (!editing) return;
+  const text = dlgText.value.trim();
+  if (text) setBooking(currentUser, editing.date, editing.key, text);
+  closeEditor();
+});
+document.getElementById("btnDelete").addEventListener("click", function () {
+  if (!editing) return;
+  setBooking(currentUser, editing.date, editing.key, "");
+  closeEditor();
+});
+document.getElementById("btnCancel").addEventListener("click", closeEditor);
+overlay.addEventListener("click", function (e) { if (e.target === overlay) closeEditor(); });
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape" && !overlay.hidden) closeEditor();
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !overlay.hidden) document.getElementById("btnSave").click();
+});
+
+/* ---------------- Accès / session ---------------- */
+const loginScreen = document.getElementById("loginScreen");
+const appEl = document.getElementById("app");
+const loginCode = document.getElementById("loginCode");
+const loginError = document.getElementById("loginError");
+const sessionBadge = document.getElementById("sessionBadge");
+
+function enterApp(garage) {
+  currentUser = garage;
+  sessionBadge.textContent = GARAGE_LABEL[garage];
+  sessionBadge.className = garage;
+  sessionBadge.id = "sessionBadge";
+  loginError.textContent = "";
+  loginCode.value = "";
+  loginScreen.hidden = true;
+  appEl.hidden = false;
+  render();
+}
+function exitApp() {
+  currentUser = null;
+  closeEditor();
+  appEl.hidden = true;
+  loginScreen.hidden = false;
+  loginCode.focus();
+}
+
+document.getElementById("loginForm").addEventListener("submit", function (e) {
+  e.preventDefault();
+  const garage = USERS[loginCode.value.trim()];
+  if (garage) enterApp(garage);
+  else {
+    loginError.textContent = "Nom d'utilisateur inconnu.";
+    loginCode.select();
+  }
+});
+document.getElementById("btnLogout").addEventListener("click", exitApp);
+
+/* ---------------- Navigation ---------------- */
+document.getElementById("prevWeek").addEventListener("click", function () { weekOffset--; render(); });
+document.getElementById("nextWeek").addEventListener("click", function () { weekOffset++; render(); });
+document.getElementById("todayBtn").addEventListener("click", function () { weekOffset = 0; render(); });
+
+/* ---------------- Démarrage ---------------- */
+initData();
+loginCode.focus();
+</script>
+</body>
+</html>
