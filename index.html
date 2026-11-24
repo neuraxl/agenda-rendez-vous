@@ -134,8 +134,7 @@
 
   /* ---------- Vue client ---------- */
   #clientTitle { font-size: 20px; font-weight: 700; padding: 9px 4px; }
-  .csel { display: flex; gap: 8px; }
-  .csel button, #btnClientBack {
+  #btnClientBack {
     font-size: 15px;
     padding: 8px 14px;
     border: 1px solid #9aa7b1;
@@ -144,9 +143,8 @@
     color: #1c2733;
     cursor: pointer;
   }
-  .csel button:hover, #btnClientBack:hover { background: #dde4ea; }
-  #clientSelG1.active { background: #2e7d32; border-color: #2e7d32; color: #ffffff; font-weight: 700; }
-  #clientSelG2.active { background: #1565c0; border-color: #1565c0; color: #ffffff; font-weight: 700; }
+  #btnClientBack:hover { background: #dde4ea; }
+  #clientHint { font-size: 15px; color: #43536a; margin: 2px 0 10px; }
   #clientWeekLabel { font-size: 17px; font-weight: 700; margin-left: 6px; }
   #btnClientBack { margin-left: auto; }
   .ccell {
@@ -160,7 +158,8 @@
     font-weight: 700;
     line-height: 1;
   }
-  .ccell.free { background: #b9e4b9; }
+  .ccell.free { background: #b9e4b9; cursor: pointer; }
+  .ccell.free:hover { background: #8fd18f; }
   .ccell.taken { background: #f3d1d1; color: #b71c1c; }
 
   /* ---------- Grille ---------- */
@@ -340,6 +339,60 @@
     cursor: pointer;
     margin-left: auto;
   }
+
+  /* ---------- Fenêtres client (réservation + confirmation) ---------- */
+  .modalOverlay {
+    position: fixed; inset: 0;
+    background: rgba(20, 30, 40, .45);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 11;
+  }
+  .modalOverlay[hidden] { display: none; }
+  .modalBox {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 22px;
+    width: min(480px, 92vw);
+    box-shadow: 0 12px 40px rgba(0,0,0,.35);
+  }
+  .modalBox h2 { font-size: 19px; margin-bottom: 4px; }
+  .modalBox .when { font-size: 15px; color: #43536a; margin-bottom: 6px; }
+  .modalBox label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #43536a;
+    margin: 12px 0 4px;
+  }
+  .modalBox input[type="text"], .modalBox input[type="tel"] {
+    width: 100%;
+    font: inherit;
+    font-size: 16px;
+    padding: 9px;
+    border: 1px solid #9aa7b1;
+    border-radius: 6px;
+  }
+  .modalBox input:focus { border-color: #33506e; outline: none; }
+  .modalBox .err {
+    min-height: 20px;
+    margin-top: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #c62828;
+  }
+  .modalBox .row { display: flex; gap: 8px; margin-top: 16px; }
+  .modalBox button {
+    font-size: 15px;
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: 1px solid #9aa7b1;
+    background: #eef1f4;
+    cursor: pointer;
+  }
+  #btnClientConfirm { background: #2e7d32; border-color: #2e7d32; color: #fff; font-weight: 700; margin-left: auto; }
+  #btnClientConfirm:disabled { opacity: .6; cursor: wait; }
+  #msgText { font-size: 17px; line-height: 1.45; }
+  #btnMsgClose { background: #33506e; border-color: #33506e; color: #fff; font-weight: 700; margin-left: auto; }
 </style>
 </head>
 <body>
@@ -383,14 +436,10 @@
   </main>
 </div>
 
-<!-- ============ VUE CLIENT (disponibilités, lecture seule, sans accès) ============ -->
+<!-- ============ VUE CLIENT (disponibilités combinées + réservation, sans accès) ============ -->
 <div id="clientScreen" hidden>
   <header>
     <span id="clientTitle">Disponibilités</span>
-    <div class="csel">
-      <button id="clientSelG1" type="button">Garage 1</button>
-      <button id="clientSelG2" type="button">Garage 2</button>
-    </div>
     <div class="nav">
       <button id="clientPrevWeek" title="Semaine précédente">‹ Préc.</button>
       <button id="clientTodayBtn">Aujourd'hui</button>
@@ -405,8 +454,38 @@
   </header>
 
   <main>
+    <p id="clientHint">Cliquez sur une case verte (libre) pour réserver ce créneau.</p>
     <table id="clientGrid"></table>
   </main>
+</div>
+
+<!-- ============ RÉSERVATION CLIENT ============ -->
+<div id="clientOverlay" class="modalOverlay" hidden>
+  <div class="modalBox" role="dialog" aria-modal="true">
+    <h2>Réserver un rendez-vous</h2>
+    <div class="when" id="cWhen"></div>
+    <label for="cNom">Nom :</label>
+    <input id="cNom" type="text" autocomplete="off" placeholder="Votre nom">
+    <label for="cTel">Tél :</label>
+    <input id="cTel" type="tel" autocomplete="off" placeholder="Téléphone (facultatif)">
+    <label for="cPlaque"># plaque :</label>
+    <input id="cPlaque" type="text" autocomplete="off" placeholder="Plaque (facultatif)">
+    <div class="err" id="cError" role="alert"></div>
+    <div class="row">
+      <button id="btnClientCancel" type="button">Annuler</button>
+      <button id="btnClientConfirm" type="button">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CONFIRMATION CLIENT ============ -->
+<div id="msgOverlay" class="modalOverlay" hidden>
+  <div class="modalBox" role="alertdialog" aria-modal="true">
+    <p id="msgText"></p>
+    <div class="row">
+      <button id="btnMsgClose" type="button">Fermer</button>
+    </div>
+  </div>
 </div>
 
 <div id="overlay" hidden>
@@ -480,7 +559,7 @@ const MOIS_LONGS = ["janvier", "février", "mars", "avril", "mai", "juin",
 /* ---------------- État ---------------- */
 let currentUser = null;            // "g1" | "g2" | null (écran d'accès)
 let clientOpen = false;            // vue client (disponibilités) affichée
-let clientGarage = "g1";           // garage montré dans la vue client
+let clientEditing = null;          // { date, key } réservation client en cours
 let weekOffset = 0;                // 0 = semaine courante
 let bookings = { g1: {}, g2: {} }; // bookings[garage][dateISO][cleHeure] = { nom, tel, plaque }
 let editing = null;                // { date, key } en cours d'édition
@@ -587,6 +666,47 @@ function setBooking(garage, date, key, data) {
     else ref.remove();
     // le rendu se fait par l'écouteur temps réel (on value)
   }
+}
+
+/* ---------------- Réservation par un CLIENT ----------------
+   Le client ne choisit pas le garage : le rendez-vous est inscrit
+   dans le garage où l'heure est libre — Garage 1 (1775) d'abord,
+   sinon Garage 2 (2850). La disponibilité est revérifiée AU MOMENT
+   de confirmer :
+   - Mode démo : vérification et écriture immédiates (localStorage).
+   - Firebase : TRANSACTION sur la case (comparaison et écriture
+     côté serveur) — si une autre réservation gagne la course, la
+     transaction avorte et on essaie l'autre garage.
+   Retourne une promesse : "g1", "g2" ou null (pris partout). */
+function clientBookLocal(date, key, data) {
+  const order = ["g1", "g2"];
+  for (let i = 0; i < order.length; i++) {
+    const g = order[i];
+    if (!normEntry(((bookings[g] || {})[date] || {})[key])) {
+      if (!bookings[g][date]) bookings[g][date] = {};
+      bookings[g][date][key] = { nom: data.nom, tel: data.tel || "", plaque: data.plaque || "" };
+      saveDemo();
+      renderActive();
+      return g;
+    }
+  }
+  return null;
+}
+function clientTryFirebase(garage, date, key, data) {
+  const ref = dbRef.child(garage + "/" + date + "/" + key);
+  return ref.transaction(function (cur) {
+    if (normEntry(cur)) return undefined; // déjà pris : on avorte
+    return { nom: data.nom, tel: data.tel || "", plaque: data.plaque || "", maj: Date.now() };
+  }).then(function (res) { return !!(res && res.committed); });
+}
+function clientBook(date, key, data) {
+  if (useLocal) return Promise.resolve(clientBookLocal(date, key, data));
+  return clientTryFirebase("g1", date, key, data).then(function (ok1) {
+    if (ok1) return "g1";
+    return clientTryFirebase("g2", date, key, data).then(function (ok2) {
+      return ok2 ? "g2" : null;
+    });
+  });
 }
 
 /* ---------------- Archivage mensuel ----------------
@@ -747,11 +867,13 @@ function renderActive() {
   if (clientOpen) renderClient();
 }
 
-/* ---------------- Vue CLIENT (lecture seule, sans accès) ----------------
-   Montre seulement les disponibilités d'UN garage à la fois :
-   case verte vide = libre ; case avec « ✗ » bien visible = pris.
+/* ---------------- Vue CLIENT (sans accès) ----------------
+   UNE SEULE grille de disponibilités COMBINÉES des deux garages :
+   case verte = l'heure est libre dans au moins un garage ;
+   case avec « ✗ » = l'heure est prise dans les DEUX garages.
    AUCUN détail de rendez-vous n'est affiché (jamais les noms, les
-   tél ou les plaques), aucun clic possible, aucune modification. */
+   tél ou les plaques). Un clic sur une case verte ouvre le
+   formulaire de réservation (voir plus bas). */
 function renderClient() {
   if (!clientOpen) return;
   const days = weekDays();
@@ -760,8 +882,6 @@ function renderClient() {
   document.getElementById("clientWeekLabel").textContent =
     "Semaine du " + first.getDate() + " " + MOIS[first.getMonth()] +
     " au " + last.getDate() + " " + MOIS[last.getMonth()] + " " + last.getFullYear();
-  document.getElementById("clientSelG1").classList.toggle("active", clientGarage === "g1");
-  document.getElementById("clientSelG2").classList.toggle("active", clientGarage === "g2");
 
   const grid = document.getElementById("clientGrid");
   let html = "<thead><tr><th>Heure</th>";
@@ -775,9 +895,12 @@ function renderClient() {
     html += "<tr><td class='time'>" + keyLabel(key) + "</td>";
     days.forEach(function (d) {
       const date = isoDate(d);
-      // Seule la PRÉSENCE d'un rendez-vous est lue — jamais son contenu
-      const taken = !!normEntry(((bookings[clientGarage] || {})[date] || {})[key]);
-      html += "<td class='slot'><div class='ccell " + (taken ? "taken" : "free") + "'>" +
+      // Seule la PRÉSENCE des rendez-vous est lue — jamais leur contenu
+      const takenG1 = !!normEntry(((bookings.g1 || {})[date] || {})[key]);
+      const takenG2 = !!normEntry(((bookings.g2 || {})[date] || {})[key]);
+      const taken = takenG1 && takenG2; // « ✗ » seulement si pris dans les deux garages
+      html += "<td class='slot'><div class='ccell " + (taken ? "taken" : "free") + "'" +
+              (taken ? "" : " data-date='" + date + "' data-key='" + key + "'") + ">" +
               (taken ? "✗" : "") + "</div></td>";
     });
     html += "</tr>";
@@ -845,6 +968,8 @@ overlay.addEventListener("click", function (e) { if (e.target === overlay) close
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape" && !overlay.hidden) closeEditor();
   if (e.key === "Escape" && !archOverlay.hidden) closeArchives();
+  if (e.key === "Escape" && !clientOverlay.hidden) closeClientForm();
+  if (e.key === "Escape" && !msgOverlay.hidden) msgOverlay.hidden = true;
   if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !overlay.hidden) document.getElementById("btnSave").click();
 });
 
@@ -946,14 +1071,98 @@ function enterClient() {
 }
 function exitClient() {
   clientOpen = false;
+  closeClientForm();
   clientScreen.hidden = true;
   loginScreen.hidden = false;
   loginCode.focus();
 }
 document.getElementById("btnClient").addEventListener("click", enterClient);
 document.getElementById("btnClientBack").addEventListener("click", exitClient);
-document.getElementById("clientSelG1").addEventListener("click", function () { clientGarage = "g1"; renderClient(); });
-document.getElementById("clientSelG2").addEventListener("click", function () { clientGarage = "g2"; renderClient(); });
+
+/* ---------------- Réservation client : formulaire ----------------
+   Le client clique une case verte → formulaire avec EXACTEMENT
+   trois champs (Nom, Tél, # plaque — même présentation que celui
+   des garages ; nom obligatoire) → « Confirmer » : la disponibilité
+   est revérifiée à cet instant (voir clientBook) et le rendez-vous
+   est inscrit au Garage 1 si l'heure y est libre, sinon au
+   Garage 2. Un message confirme en nommant le garage obtenu. */
+const clientOverlay = document.getElementById("clientOverlay");
+const cNom = document.getElementById("cNom");
+const cTel = document.getElementById("cTel");
+const cPlaque = document.getElementById("cPlaque");
+const cError = document.getElementById("cError");
+const btnClientConfirm = document.getElementById("btnClientConfirm");
+const msgOverlay = document.getElementById("msgOverlay");
+const msgText = document.getElementById("msgText");
+
+/* « mardi 25 nov. à 9 h 30 » */
+function dateLongue(dateIsoStr, key) {
+  const d = new Date(dateIsoStr + "T12:00:00");
+  return JOURS[(d.getDay() + 6) % 7] + " " + d.getDate() + " " + MOIS[d.getMonth()] +
+         " à " + keyLabel(key).replace(/^0/, "");
+}
+function openClientForm(date, key) {
+  clientEditing = { date: date, key: key };
+  document.getElementById("cWhen").textContent = dateLongue(date, key);
+  cNom.value = "";
+  cTel.value = "";
+  cPlaque.value = "";
+  cError.textContent = "";
+  btnClientConfirm.disabled = false;
+  clientOverlay.hidden = false;
+  cNom.focus();
+}
+function closeClientForm() { clientOverlay.hidden = true; clientEditing = null; }
+function showClientMsg(text) { msgText.textContent = text; msgOverlay.hidden = false; }
+
+document.getElementById("clientGrid").addEventListener("click", function (e) {
+  const cell = e.target.closest(".ccell.free");
+  if (cell) openClientForm(cell.dataset.date, cell.dataset.key);
+  // les cases « ✗ » n'ont pas de data-* : clic sans effet
+});
+document.getElementById("btnClientCancel").addEventListener("click", closeClientForm);
+clientOverlay.addEventListener("click", function (e) { if (e.target === clientOverlay) closeClientForm(); });
+document.getElementById("btnMsgClose").addEventListener("click", function () { msgOverlay.hidden = true; });
+msgOverlay.addEventListener("click", function (e) { if (e.target === msgOverlay) msgOverlay.hidden = true; });
+
+btnClientConfirm.addEventListener("click", function () {
+  if (!clientEditing) return;
+  const nom = cNom.value.trim();
+  if (!nom) {
+    // Le nom est obligatoire : on n'enregistre pas sans lui
+    cError.textContent = "Le nom est obligatoire.";
+    cNom.focus();
+    return;
+  }
+  const data = { nom: nom, tel: cTel.value.trim(), plaque: cPlaque.value.trim() };
+  const target = { date: clientEditing.date, key: clientEditing.key };
+  btnClientConfirm.disabled = true;
+  cError.textContent = "";
+  // Filet de sécurité : si la réponse traîne (connexion lente),
+  // on réactive le bouton avec un message plutôt que de bloquer.
+  const timeout = new Promise(function (resolve) {
+    setTimeout(function () { resolve("timeout"); }, 12000);
+  });
+  Promise.race([clientBook(target.date, target.key, data), timeout]).then(function (result) {
+    btnClientConfirm.disabled = false;
+    if (result === "timeout") {
+      cError.textContent = "La réservation n'a pas abouti — vérifiez votre connexion et réessayez.";
+      return;
+    }
+    if (!result) {
+      // L'heure vient d'être prise dans les deux garages entre-temps
+      cError.textContent = "Ce créneau vient d'être pris, choisissez une autre heure.";
+      renderClient();
+      return;
+    }
+    const when = dateLongue(target.date, target.key);
+    closeClientForm();
+    showClientMsg("Votre rendez-vous est confirmé : " + GARAGE_LABEL[result] + " — " + when + ".");
+  }).catch(function () {
+    btnClientConfirm.disabled = false;
+    cError.textContent = "La réservation n'a pas abouti — vérifiez votre connexion et réessayez.";
+  });
+});
 document.getElementById("clientPrevWeek").addEventListener("click", function () { weekOffset--; renderClient(); });
 document.getElementById("clientNextWeek").addEventListener("click", function () { weekOffset++; renderClient(); });
 document.getElementById("clientTodayBtn").addEventListener("click", function () { weekOffset = 0; renderClient(); });
